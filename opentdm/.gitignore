@@ -1,0 +1,6 @@
+/*.d
+/*.o
+/game*.so
+/game*.dll
+/tags
+/TAGS

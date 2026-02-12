@@ -1,0 +1,11 @@
+# Claude AI files
+CLAUDE.md
+.claude/
+
+# Build artifacts
+*.o
+*.so
+*.d
+
+# Dependencies / build dirs
+deps/
