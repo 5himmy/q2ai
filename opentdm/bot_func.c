@@ -6,6 +6,24 @@
 #include "g_tdm_core.h"
 #include "m_player.h"
 
+cvar_t *g_bot_skill;
+cvar_t *g_bot_config;
+
+// Original 3ZB2 1v1 skill presets (skill 1-10), indexed [skill-1][param]
+// Params: Walk Aim Pickup Off Combat RocJ React VR HR PriW SecW Dodge Est Noise Water Team
+static const int skill_presets[10][16] = {
+    { 1, 2, 3, 1, 3, 0, 3,  60,  60,  0, 0, 0, 0, 0, 1, 0 }, // skill 1
+    { 0, 3, 3, 2, 4, 0, 3,  65,  65,  3, 0, 0, 0, 1, 1, 2 }, // skill 2
+    { 0, 3, 3, 2, 6, 0, 5,  75,  75,  8, 0, 1, 0, 1, 1, 4 }, // skill 3
+    { 0, 5, 4, 4, 7, 1, 5,  75,  75,  8, 5, 1, 0, 1, 1, 5 }, // skill 4
+    { 0, 7, 4, 5, 8, 1, 6,  80,  80,  8, 5, 1, 0, 1, 1, 8 }, // skill 5
+    { 0, 8, 4, 6, 9, 1, 7,  90,  90,  5, 5, 1, 1, 1, 1, 8 }, // skill 6
+    { 0, 8, 4, 8, 9, 1, 7, 100,  95, 10, 5, 1, 1, 1, 1, 9 }, // skill 7
+    { 0, 9, 6, 8, 9, 1, 7, 105, 105, 10, 5, 1, 1, 1, 1, 9 }, // skill 8
+    { 0, 9, 6, 8, 9, 1, 7, 110, 110, 10, 5, 1, 1, 1, 1, 9 }, // skill 9
+    { 0, 9, 6, 8, 9, 1, 8, 115, 115, 10, 5, 1, 1, 1, 1, 9 }, // skill 10
+};
+
 //----------------------------------------------------------------
 // Load Chain Data - port of CTFSetupNavSpawn() from zigock-q2
 // Loads pre-computed waypoint routes from .chn files for bot navigation
@@ -164,17 +182,174 @@ void Bot_LoadChainData(void)
 }
 
 //----------------------------------------------------------------
-// Load Bot Info - simplified for opentdm (no config file)
+// Bot_NextDelim - extract next backslash-delimited field from line
+// Scans from *pos, finds next '\' or end-of-line, null-terminates
+// the field, converts tabs to nulls, returns pointer to field start.
+// Advances *pos past the delimiter for the next call.
+//----------------------------------------------------------------
+static char *Bot_NextDelim(char *line, int *pos)
+{
+    char *start;
+    int i;
+
+    i = *pos;
+
+    // skip leading backslash
+    if (line[i] == '\\')
+        i++;
+
+    start = &line[i];
+
+    // scan to next backslash or end-of-line
+    while (line[i] != '\0' && line[i] != '\\' && line[i] != '\n' && line[i] != '\r') {
+        // convert tabs to null (field trimming, matching original 3ZB2)
+        if (line[i] == '\t')
+            line[i] = '\0';
+        i++;
+    }
+
+    // null-terminate this field
+    if (line[i] == '\\') {
+        line[i] = '\0';
+        *pos = i + 1;
+    } else {
+        if (line[i] != '\0')
+            line[i] = '\0';
+        *pos = i;
+    }
+
+    return start;
+}
+
+//----------------------------------------------------------------
+// Bot_LoadConfig - load bot definitions from a config file section
+// Opens ./{gamedir}/botconfig.cfg, finds [section_name], parses
+// bot entries into Bot[] array. Returns count loaded (0 on failure).
+//----------------------------------------------------------------
+static int Bot_LoadConfig(const char *section_name)
+{
+    FILE *fp;
+    char path[256];
+    char line[512];
+    char header[128];
+    int count = 0;
+    int pos;
+    char *field;
+    qboolean in_section = false;
+
+    snprintf(path, sizeof(path), "./%s/botconfig.cfg", game.gamedir);
+
+    fp = fopen(path, "r");
+    if (!fp) {
+        gi.dprintf("Bot config: botconfig.cfg not found.\n");
+        return 0;
+    }
+
+    // build header to search for: [section_name]
+    snprintf(header, sizeof(header), "[%s]", section_name);
+
+    while (fgets(line, sizeof(line), fp)) {
+        // strip trailing newline
+        int len = (int)strlen(line);
+        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+            line[--len] = '\0';
+
+        // check for section headers
+        if (line[0] == '[') {
+            if (in_section) {
+                // hit next section, we're done
+                break;
+            }
+            // strip trailing whitespace from header line for comparison
+            int hlen = (int)strlen(line);
+            while (hlen > 0 && (line[hlen - 1] == ' ' || line[hlen - 1] == '\t'))
+                line[--hlen] = '\0';
+            if (!Q_stricmp(line, header)) {
+                in_section = true;
+            }
+            continue;
+        }
+
+        if (!in_section)
+            continue;
+
+        // skip comments and blank lines
+        if (line[0] == '#' || line[0] == '\0')
+            continue;
+
+        // bot entries start with double backslash
+        if (line[0] != '\\' || line[1] != '\\')
+            continue;
+
+        if (count >= MAXBOTS)
+            break;
+
+        // parse: \\Name\Model\Skin\16 params\Team\Spawn
+        pos = 1; // skip first backslash, Bot_NextDelim will skip second
+
+        // netname
+        field = Bot_NextDelim(line, &pos);
+        Q_strncpy(Bot[count].netname, field, sizeof(Bot[count].netname) - 1);
+
+        // model
+        field = Bot_NextDelim(line, &pos);
+        Q_strncpy(Bot[count].model, field, sizeof(Bot[count].model) - 1);
+
+        // skin
+        field = Bot_NextDelim(line, &pos);
+        Q_strncpy(Bot[count].skin, field, sizeof(Bot[count].skin) - 1);
+
+        // 16 params
+        for (int p = 0; p < MAXBOP; p++) {
+            field = Bot_NextDelim(line, &pos);
+            Bot[count].param[p] = (unsigned char)atoi(field);
+        }
+
+        // weapon defaults: if primary/secondary is 0, default to RL/RG
+        if (Bot[count].param[BOP_PRIWEP] == 0)
+            Bot[count].param[BOP_PRIWEP] = WEAP_ROCKETLAUNCHER;
+        if (Bot[count].param[BOP_SECWEP] == 0)
+            Bot[count].param[BOP_SECWEP] = WEAP_RAILGUN;
+
+        // team: 'A' or 'R' = team 1, 'B' = team 2
+        field = Bot_NextDelim(line, &pos);
+        if (field[0] == 'B' || field[0] == 'b')
+            Bot[count].team = 2;
+        else
+            Bot[count].team = 1;
+
+        // spawn flag: always reset to BOT_SPAWNNOT (opentdm uses g_spawn_bots)
+        Bot_NextDelim(line, &pos); // consume but ignore
+        Bot[count].spflg = BOT_SPAWNNOT;
+
+        count++;
+    }
+
+    fclose(fp);
+    return count;
+}
+
+//----------------------------------------------------------------
+// Load Bot Info - initialize from skill presets, overlay config
 //----------------------------------------------------------------
 void Bot_InitDefaults(void)
 {
-    int i, j;
+    int i, j, skill;
+    const int *preset;
 
     SpawnWaitingBots = 0;
     ListedBotCount = 0;
     ListedBots = 0;
 
     memset(ClientMessage, 0, sizeof(ClientMessage));
+
+    // Clamp skill 1-10
+    skill = (int)g_bot_skill->value;
+    if (skill < 1) skill = 1;
+    if (skill > 10) skill = 10;
+    preset = skill_presets[skill - 1];
+
+    gi.dprintf("Bot skill level: %d\n", skill);
 
     j = 1;
     for (i = 0; i < MAXBOTS; i++) {
@@ -185,23 +360,24 @@ void Bot_InitDefaults(void)
         // skin
         strcpy(Bot[i].skin, "grunt");
 
-        // params - medium skill defaults
-        Bot[i].param[BOP_WALK] = 0;
-        Bot[i].param[BOP_AIM] = 5;
-        Bot[i].param[BOP_PICKUP] = 5;
-        Bot[i].param[BOP_OFFENCE] = 5;
-        Bot[i].param[BOP_COMBATSKILL] = 5;
-        Bot[i].param[BOP_ROCJ] = 0;
-        Bot[i].param[BOP_REACTION] = 3;
-        Bot[i].param[BOP_VRANGE] = 90;
-        Bot[i].param[BOP_HRANGE] = 180;
-        Bot[i].param[BOP_PRIWEP] = WEAP_ROCKETLAUNCHER;
-        Bot[i].param[BOP_SECWEP] = WEAP_RAILGUN;
-        Bot[i].param[BOP_DODGE] = 5;
-        Bot[i].param[BOP_ESTIMATE] = 3;
-        Bot[i].param[BOP_NOISECHK] = 3;
-        Bot[i].param[BOP_NOSTHRWATER] = 0;
-        Bot[i].param[BOP_TEAMWORK] = 5;
+        // params from 3ZB2 skill preset
+        Bot[i].param[BOP_WALK]        = preset[0];
+        Bot[i].param[BOP_AIM]         = preset[1];
+        Bot[i].param[BOP_PICKUP]      = preset[2];
+        Bot[i].param[BOP_OFFENCE]     = preset[3];
+        Bot[i].param[BOP_COMBATSKILL] = preset[4];
+        Bot[i].param[BOP_ROCJ]        = preset[5];
+        Bot[i].param[BOP_REACTION]    = preset[6];
+        Bot[i].param[BOP_VRANGE]      = preset[7];
+        Bot[i].param[BOP_HRANGE]      = preset[8];
+        // Weapon prefs: use preset if non-zero, otherwise default to RL/RG
+        Bot[i].param[BOP_PRIWEP]      = preset[9]  ? preset[9]  : WEAP_ROCKETLAUNCHER;
+        Bot[i].param[BOP_SECWEP]      = preset[10] ? preset[10] : WEAP_RAILGUN;
+        Bot[i].param[BOP_DODGE]       = preset[11];
+        Bot[i].param[BOP_ESTIMATE]    = preset[12];
+        Bot[i].param[BOP_NOISECHK]    = preset[13];
+        Bot[i].param[BOP_NOSTHRWATER] = preset[14];
+        Bot[i].param[BOP_TEAMWORK]    = preset[15];
 
         // spawn flag
         Bot[i].spflg = 0;
@@ -209,6 +385,19 @@ void Bot_InitDefaults(void)
         Bot[i].team = j;
         if (++j > 2) {
             j = 1;
+        }
+    }
+
+    // Overlay config file entries if g_bot_config is set
+    if (g_bot_config->string[0]) {
+        int loaded = Bot_LoadConfig(g_bot_config->string);
+        if (loaded > 0) {
+            ListedBots = loaded;
+            gi.dprintf("Bot config: loaded %d bots from section [%s].\n",
+                        loaded, g_bot_config->string);
+        } else {
+            gi.dprintf("Bot config: section [%s] not found or empty, using skill %d presets.\n",
+                        g_bot_config->string, skill);
         }
     }
 

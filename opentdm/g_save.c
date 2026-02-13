@@ -355,6 +355,12 @@ void InitGame(void) {
     // bot spawning
     g_spawn_bots = gi.cvar("g_spawn_bots", "0", 0);
 
+    // bot skill level (1-10, uses original 3ZB2 presets)
+    g_bot_skill = gi.cvar("g_bot_skill", "5", 0);
+
+    // bot config section name (loads per-bot settings from botconfig.cfg)
+    g_bot_config = gi.cvar("g_bot_config", "", 0);
+
     InitItems();
 
     // initialize all entities for this game
