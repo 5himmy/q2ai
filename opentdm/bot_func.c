@@ -283,6 +283,8 @@ edict_t *Get_NewClient(void)
 //----------------------------------------------------------------
 void Bot_Think(edict_t *self)
 {
+    if (!self->client) return;
+
     if (self->linkcount != self->monsterinfo.linkcount) {
         M_CheckGround(self);
     }
@@ -540,24 +542,19 @@ void PutBotInServer(edict_t *ent)
     zc->second_target = NULL;
     zc->zcstate = STS_IDLE;
 
-    if (ent->client->resp.enterframe == level.framenum) {
-        gi.WriteByte(SVC_MUZZLEFLASH);
-        gi.WriteShort(ent - g_edicts);
-        gi.WriteByte(MZ_LOGIN);
-        gi.multicast(ent->s.origin, MULTICAST_PVS);
-    }
-    else {
-        gi.WriteByte(SVC_MUZZLEFLASH);
-        gi.WriteShort(ent - g_edicts);
-        gi.WriteByte(MZ_RESPAWN);
-        gi.multicast(ent->s.origin, MULTICAST_PVS);
-    }
+    ent->s.event = EV_PLAYER_TELEPORT;
 
     if (!KillBox(ent)) {
         // couldn't spawn in?
     }
 
     gi.linkentity(ent);
+
+    // Give proper weapons/items for current match state (warmup gives all weapons)
+    if (ent->client->pers.team) {
+        TDM_SetInitialItems(ent);
+    }
+
     SetVWepInfo(ent);
     G_TouchTriggers(ent);
 }
@@ -582,9 +579,6 @@ qboolean SpawnBot(int i)
 
     InitializeBot(bot, i);
     PutBotInServer(bot);
-
-    // Give proper weapons/items for current match state
-    TDM_SetInitialItems(bot);
 
     // Register with TDM team system (inline JoinedTeam without respawn/menu/hud)
     if (!teaminfo[bot->client->pers.team].captain) {
@@ -799,6 +793,9 @@ void BotEndServerFrame(edict_t *ent)
         }
     }
 
+    // apply all the damage taken this frame
+    P_DamageFeedback(ent);
+
     // set effects
     ent->s.effects = 0;
     ent->s.renderfx = 0;
@@ -841,6 +838,12 @@ void BotEndServerFrame(edict_t *ent)
     if (ent->client->invincible_framenum > level.framenum) {
         ent->s.effects |= EF_PENT;
     }
+
+    // Update stats for spectator chase cam HUD
+    G_SetStats(ent);
+
+    // Keep weapon model (vwep) in sync with current weapon
+    SetVWepInfo(ent);
 
     VectorCopy(ent->velocity, ent->client->oldvelocity);
 
