@@ -93,6 +93,11 @@ ifdef CONFIG_32BIT
 	TARGET ?= game$(CPU)-opentdm-$(VER).so
 endif
 
+ifdef CONFIG_ASAN
+	CFLAGS += -fsanitize=address -fno-omit-frame-pointer -g -O1
+	LDFLAGS += -fsanitize=address
+endif
+
 all: $(TARGET)
 
 default: all

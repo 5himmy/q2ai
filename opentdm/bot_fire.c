@@ -347,6 +347,7 @@ int CanUsewep(edict_t *ent, int weapon)
 
 	case WEAP_TRAP:
 		item = Fdi_TRAP;//FindItem("Trap");
+		if (!item) break;
 		ammoindex = ITEM_INDEX(Fdi_TRAP/*FindItem("Trap")*/);
 
 		if (client->inventory[ammoindex] > 0) {
@@ -418,6 +419,7 @@ int CanUsewep(edict_t *ent, int weapon)
 
 	case WEAP_BOOMER:
 		item = Fdi_BOOMER;//FindItem("Ionripper");
+		if (!item) break;
 		ammoindex = ITEM_INDEX(Fdi_CELLS/*FindItem("Cells")*/);
 
 		if (client->inventory[ITEM_INDEX(item)]
@@ -454,6 +456,7 @@ int CanUsewep(edict_t *ent, int weapon)
 
 	case WEAP_PHALANX:
 		item = Fdi_PHALANX;//FindItem("Phalanx");
+		if (!item) break;
 		ammoindex = ITEM_INDEX(Fdi_MAGSLUGS/*FindItem("Mag Slug")*/);
 
 		if (client->inventory[ITEM_INDEX(item)]

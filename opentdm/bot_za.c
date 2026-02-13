@@ -846,16 +846,16 @@ void Bot_SearchItems(edict_t *ent)
 						}
 					}
 					else if (entcln[7] == 'b' && entcln[8] == 'o') { //weapon_boomer
-						if (!wstayf || (wstayf
+						if (Fdi_BOOMER && (!wstayf || (wstayf
 						                && (!ent->client->inventory[ITEM_INDEX(Fdi_BOOMER/*FindItem("Ionripper")*/)]
-						                    || trent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)))) {
+						                    || trent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))))) {
 							target = trent;
 						}
 					}
 					else if (entcln[7] == 'p') {                //weapon_phalanx
-						if (!wstayf || (wstayf
+						if (Fdi_PHALANX && (!wstayf || (wstayf
 						                && (!ent->client->inventory[ITEM_INDEX(Fdi_PHALANX/*FindItem("Phalanx")*/)]
-						                    || trent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM)))) {
+						                    || trent->spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))))) {
 							target = trent;
 						}
 					}
@@ -1950,7 +1950,7 @@ qboolean Bot_Fall(edict_t *ent, vec3_t pos, float dist)
 		VectorCopy(v, vv);
 		vv[2] = 0;
 		//vel�l���̗���
-		if (Route[zc->routeindex].state == GRS_ONTRAIN) {
+		if (Route[zc->routeindex].state == GRS_ONTRAIN && Route[zc->routeindex].ent) {
 			if (1/*Route[zc->routeindex].ent->trainteam == NULL*/) {
 				vv[0] += FRAMETIME * Route[zc->routeindex].ent->velocity[0] * x;
 				vv[1] += FRAMETIME * Route[zc->routeindex].ent->velocity[1] * x;
@@ -2023,7 +2023,7 @@ JUMPCATCH:
 	vv[2] = 0;
 	if (mode == 2) {
 		//vel�l���̗���
-		if (Route[zc->routeindex].state == GRS_ONTRAIN) {
+		if (Route[zc->routeindex].state == GRS_ONTRAIN && Route[zc->routeindex].ent) {
 			if (1/*Route[zc->routeindex].ent->trainteam == NULL*/) {
 //gi.bprintf(PRINT_HIGH,"Go!\n"); //ppx
 				vv[0] += FRAMETIME * Route[zc->routeindex].ent->velocity[0] * x;
@@ -2355,9 +2355,14 @@ void Get_RouteOrigin(int index, vec3_t pos)
 {
 	edict_t *e;
 
+	if (index < 0 || index >= CurrentIndex) {
+		VectorClear(pos);
+		return;
+	}
+
 	//when normal or items
 	if (Route[index].state <= GRS_ITEMS || Route[index].state >= GRS_GRAPSHOT) {
-		if (Route[index].state == GRS_ITEMS) {
+		if (Route[index].state == GRS_ITEMS && Route[index].ent) {
 			VectorCopy(Route[index].ent->s.origin, pos);
 			pos[2] += 8;
 		}
@@ -2368,11 +2373,19 @@ void Get_RouteOrigin(int index, vec3_t pos)
 	}
 	//when plat
 	else if (Route[index].state == GRS_ONPLAT) {
-		GetUnionEntOrigin(Route[index].ent, pos);
-		pos[2] += 8;
+		if (Route[index].ent) {
+			GetUnionEntOrigin(Route[index].ent, pos);
+			pos[2] += 8;
+		} else {
+			VectorCopy(Route[index].Pt, pos);
+		}
 	}
 	//when train
 	else if (Route[index].state == GRS_ONTRAIN) {
+		if (!Route[index].ent) {
+			VectorCopy(Route[index].Pt, pos);
+			return;
+		}
 		if (Route[index].ent->trainteam == NULL) {
 			GetUnionEntOrigin(Route[index].ent, pos);
 			pos[2] += 8;
@@ -2405,6 +2418,10 @@ void Get_RouteOrigin(int index, vec3_t pos)
 		return;
 	}
 	else if (Route[index].state == GRS_ONDOOR) {
+		if (!Route[index].ent) {
+			VectorCopy(Route[index].Pt, pos);
+			return;
+		}
 		if (Route[index].ent->union_ent) {
 			VectorCopy(Route[index].ent->union_ent->s.origin, pos);
 			pos[2] += 8;
@@ -2418,11 +2435,11 @@ void Get_RouteOrigin(int index, vec3_t pos)
 				pos[2] += 8;
 			}
 			//when plat or train
-			else if (Route[index + 1].state <= GRS_ONTRAIN) {
+			else if (Route[index + 1].state <= GRS_ONTRAIN && Route[index + 1].ent) {
 				GetUnionEntOrigin(Route[index + 1].ent, pos);
 				pos[2] += 8;
 			}
-			else if (Route[index + 1].state == GRS_PUSHBUTTON) {
+			else if (Route[index + 1].state == GRS_PUSHBUTTON && Route[index + 1].ent) {
 				GetUnionEntOrigin(Route[index + 1].ent, pos);
 				pos[2] += 8;
 			}
@@ -2436,8 +2453,11 @@ void Get_RouteOrigin(int index, vec3_t pos)
 			pos[2] = Route[index].ent->absmax[2];
 		}
 	}
-	else if (Route[index].state == GRS_PUSHBUTTON) {
+	else if (Route[index].state == GRS_PUSHBUTTON && Route[index].ent) {
 		GetUnionEntOrigin(Route[index].ent, pos);
+	}
+	else {
+		VectorCopy(Route[index].Pt, pos);
 	}
 }
 
@@ -3010,7 +3030,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 					if ((zc->routeindex + i) >= CurrentIndex) {
 						break;
 					}
-					if (Route[zc->routeindex + i].state == GRS_GRAPSHOT) {
+					if (Route[zc->routeindex + i].state == GRS_GRAPSHOT && Fdi_GRAPPLE) {
 						item = Fdi_GRAPPLE;//FindItem("Grapple");
 						if (ent->client->inventory[ITEM_INDEX(item)]) {
 							item->use(ent, item);
@@ -3019,7 +3039,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 				}
 			}
 			//����Grapple
-			else if (Route[zc->routeindex - 1].state == GRS_GRAPSHOT
+			else if (Fdi_GRAPPLE && Route[zc->routeindex - 1].state == GRS_GRAPSHOT
 			         && ent->client->ctf_grapple == NULL
 			         && zc->first_target == NULL) {
 				item = Fdi_GRAPPLE;;//FindItem("Grapple");
@@ -3093,7 +3113,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 							}
 						}
 					}
-					if (Route[zc->routeindex].state != GRS_GRAPRELEASE) {
+					if (Route[zc->routeindex].state != GRS_GRAPRELEASE && Fdi_GRAPPLE) {
 						item = Fdi_GRAPPLE;//FindItem("Grapple");
 						item->use(ent, item);
 //                      ent->client->weapon = item;
@@ -3102,7 +3122,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 						ent->client->buttons &= ~BUTTON_ATTACK;
 					}
 				}
-				else if (ent->client->ctf_grapplestate == CTF_GRAPPLE_STATE_HANG
+				else if (Fdi_GRAPPLE && ent->client->ctf_grapplestate == CTF_GRAPPLE_STATE_HANG
 				         && Route[zc->routeindex].state != GRS_GRAPRELEASE) {
 					item = Fdi_GRAPPLE;//FindItem("Grapple");
 					item->use(ent, item);
@@ -3137,7 +3157,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 						e = (edict_t *)ent->client->ctf_grapple;
 						VectorSubtract(ent->s.origin, e->s.origin, v);
 						yaw = VectorLength(v);
-						if (yaw <= (Route[zc->routeindex].Tcourner[0] /*+ 32*/)) {
+						if (yaw <= (Route[zc->routeindex].Tcourner[0] /*+ 32*/) && Fdi_GRAPPLE) {
 //                          if(yaw < 40) ent->moveinfo.speed = 0;
 							item = Fdi_GRAPPLE;//FindItem("Grapple");
 							item->use(ent, item);
@@ -3163,7 +3183,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 					                    }*/
 					ent->moveinfo.speed = 0;
 					k = true;
-					if (k) {
+					if (k && Fdi_GRAPPLE) {
 						item = Fdi_GRAPPLE;//FindItem("Grapple");
 						item->use(ent, item);
 						ent->client->buttons &= ~BUTTON_ATTACK;
@@ -4305,7 +4325,8 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 								if ((zc->routeindex + 1) < CurrentIndex) {
 									Get_RouteOrigin(zc->routeindex + 1, v);
 									if ((v[2] - ent->s.origin[2]) > JumpMax) {
-										if ((Route[zc->routeindex].ent->union_ent->s.origin[2]
+										if (Route[zc->routeindex].ent->union_ent
+										    && (Route[zc->routeindex].ent->union_ent->s.origin[2]
 										     - ent->s.origin[2]) > JumpMax
 										    /*|| !TraceX(ent,v)*/) {
 											zc->waitin_obj = Route[zc->routeindex].ent;
@@ -4411,7 +4432,8 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 						if (Route[zc->routeindex].ent == zc->waitin_obj
 						    && Route[zc->routeindex].state == GRS_ONPLAT) {
 //gi.bprintf(PRINT_HIGH,"YEAH onplat!!\n");
-							if (zc->waitin_obj->union_ent->s.origin[2] > (ent->s.origin[2] + 32)) {
+							if (zc->waitin_obj->union_ent
+							    && zc->waitin_obj->union_ent->s.origin[2] > (ent->s.origin[2] + 32)) {
 								zc->zcstate &= ~STS_W_ONPLAT;
 								zc->zcstate |= STS_W_COMEPLAT;
 							}
@@ -4611,7 +4633,8 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 			}
 		}
 		else if (zc->zcstate & STS_W_COMEPLAT) {
-			if (Route[zc->routeindex].state == GRS_ONTRAIN) {
+			if (Route[zc->routeindex].state == GRS_ONTRAIN
+			    && Route[zc->routeindex].ent && Route[zc->routeindex].ent->union_ent) {
 				if (!TraceX(ent,/*zc->waitin_obj*/Route[zc->routeindex].ent->union_ent->s.origin)) {
 					k = true;
 				}
@@ -4621,7 +4644,8 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 				}
 			}
 			else {
-				if ((zc->waitin_obj->union_ent->s.origin[2]
+				if (zc->waitin_obj->union_ent
+				    && (zc->waitin_obj->union_ent->s.origin[2]
 				     - ent->s.origin[2]) > JumpMax) {
 					k = true;
 				}
@@ -4752,7 +4776,7 @@ DCHCANC://���Ⴊ�݂��ςȂ�
 					}
 				}
 			}
-			if (!k) {
+			if (!k && zc->waitin_obj->union_ent) {
 //gi.bprintf(PRINT_HIGH,"ponko1!\n");
 				VectorCopy(zc->waitin_obj->union_ent->s.origin, trmax);
 				//trmax[0] = (zc->waitin_obj->absmin[0] + zc->waitin_obj->absmax[0]) / 2;

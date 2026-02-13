@@ -1977,6 +1977,7 @@ void ClientBeginServerFrame(edict_t *ent) {
     // only remove idle players in warmup!
     if (ent->client->pers.team && tdm_match_status == MM_WARMUP
             && g_idle_time->value
+            && !ENT_IS_BOT(ent)
             &&
             FRAMES_TO_SECS(level.framenum - ent->client->last_activity_frame)
                     > g_idle_time->value) {
