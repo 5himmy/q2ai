@@ -26,7 +26,7 @@ import torch.nn as nn
 from model import ActorCritic
 from q2ai_env import OBS_DIM, Q2AIEnv
 
-REWARD_SCALE = 10.0  # Scale up small rewards (~-0.1) so value function learns faster
+REWARD_SCALE = 5.0   # Scale up small rewards (~-0.1) so value function learns faster
 
 
 class RunningNormalizer:
@@ -88,12 +88,8 @@ class RolloutBuffer:
         """Store one transition."""
         i = self.ptr
         self.obs[i] = obs
-        self.cont_actions[i] = [
-            action_dict["yaw_delta"] / 10.0,
-            action_dict["pitch_delta"] / 5.0,
-            action_dict["forwardmove"],
-            action_dict["sidemove"],
-        ]
+        # Store raw (unclipped) model outputs so PPO log_probs match collection
+        self.cont_actions[i] = action_dict["_raw_continuous"]
         self.jump_actions[i] = action_dict["jump"]
         self.crouch_actions[i] = action_dict["crouch"]
         self.attack_actions[i] = action_dict["attack"]
@@ -140,12 +136,15 @@ class RolloutBuffer:
 
 
 def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
-               entropy_coef, value_coef, max_grad_norm, device="cpu"):
+               entropy_coef, value_coef, max_grad_norm, target_kl, device="cpu"):
     """Run PPO policy gradient updates on the rollout buffer."""
     metrics = {"policy_loss": 0, "value_loss": 0, "entropy": 0,
                "clip_fraction": 0, "approx_kl": 0, "n_updates": 0}
 
-    for _ in range(epochs):
+    early_stop = False
+    for epoch in range(epochs):
+        if early_stop:
+            break
         for batch in buffer.get_batches(batch_size, device=device):
             action = {
                 "continuous": batch["continuous"],
@@ -166,6 +165,17 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
             log_ratio = new_log_prob - batch["log_probs"]
             ratio = log_ratio.exp()
 
+            # KL early stopping: if policy drifted too far, stop updating
+            # (always do at least 1 gradient update)
+            with torch.no_grad():
+                approx_kl = ((ratio - 1) - log_ratio).mean().item()
+                if metrics["n_updates"] == 0:
+                    print(f"    batch0: ratio_mean={ratio.mean().item():.4f}, ratio_std={ratio.std().item():.4f}, "
+                          f"kl0={approx_kl:.4f}, logprob_diff={log_ratio.abs().mean().item():.4f}")
+            if target_kl > 0 and metrics["n_updates"] >= 1 and approx_kl > target_kl:
+                early_stop = True
+                break
+
             pg_loss1 = -advantages * ratio
             pg_loss2 = -advantages * torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
             policy_loss = torch.max(pg_loss1, pg_loss2).mean()
@@ -179,9 +189,7 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
             nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
 
-            with torch.no_grad():
-                approx_kl = ((ratio - 1) - log_ratio).mean().item()
-                clip_frac = ((ratio - 1.0).abs() > clip_eps).float().mean().item()
+            clip_frac = ((ratio - 1.0).abs() > clip_eps).float().mean().item()
 
             metrics["policy_loss"] += policy_loss.item()
             metrics["value_loss"] += value_loss.item()
@@ -194,6 +202,7 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
     for k in metrics:
         if k != "n_updates":
             metrics[k] /= n
+    print(f"  [PPO] n_updates={metrics['n_updates']:.0f}, avg_kl={metrics['approx_kl']:.4f}, pi={metrics['policy_loss']:.4f}")
 
     return metrics
 
@@ -201,9 +210,9 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
 def train(args):
     """Main training loop with multi-instance support."""
     num_envs = args.num_envs
-    print(f"Q2AI Training — KaaN[V1.1]")
+    print(f"Q2AI Training — KaaN[V1.2]")
     print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {args.rollout_len}, "
-          f"Batch: {args.batch_size}, Reward scale: {REWARD_SCALE}x")
+          f"Batch: {args.batch_size}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
 
     # Device selection
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -222,12 +231,24 @@ def train(args):
 
     if args.resume:
         print(f"Resuming from {args.resume}")
-        model.load_state_dict(torch.load(args.resume, weights_only=True, map_location=device))
+        state_dict = torch.load(args.resume, weights_only=True, map_location=device)
+        # Handle old shared-trunk model: copy trunk weights to both actor_trunk and critic_trunk
+        if "trunk.0.weight" in state_dict and "actor_trunk.0.weight" not in state_dict:
+            print("  Converting shared-trunk model to separate networks...")
+            new_sd = {}
+            for k, v in state_dict.items():
+                if k.startswith("trunk."):
+                    suffix = k[len("trunk."):]
+                    new_sd[f"actor_trunk.{suffix}"] = v
+                    new_sd[f"critic_trunk.{suffix}"] = v.clone()
+                else:
+                    new_sd[k] = v
+            state_dict = new_sd
+        model.load_state_dict(state_dict, strict=False)
         with torch.no_grad():
             model.actor.bias[4] = min(model.actor.bias[4].item(), -5.0)   # jump: conservative
             model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)  # crouch: disabled
             model.actor.bias[6] = min(model.actor.bias[6].item(), -5.0)   # attack: ~1% base rate
-            # Clamp log_std back to sensible range (may have inflated from entropy bonus)
             model.action_log_std.data.clamp_(-2.0, 0.5)
             print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
             print(f"  Log_std: {model.action_log_std.data.tolist()}")
@@ -358,6 +379,7 @@ def train(args):
             entropy_coef=args.entropy_coef,
             value_coef=args.value_coef,
             max_grad_norm=args.max_grad_norm,
+            target_kl=args.target_kl,
             device=device,
         )
 
@@ -410,7 +432,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Q2AI PPO Training")
     parser.add_argument("--instance", type=int, default=0, help="Starting instance ID")
     parser.add_argument("--num-envs", type=int, default=1, help="Number of parallel environments")
-    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=3e-5, help="Learning rate")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument("--clip-eps", type=float, default=0.2, help="PPO clip epsilon")
@@ -419,7 +441,8 @@ if __name__ == "__main__":
     parser.add_argument("--max-grad-norm", type=float, default=0.5, help="Max gradient norm")
     parser.add_argument("--rollout-len", type=int, default=512, help="Steps per rollout per env")
     parser.add_argument("--batch-size", type=int, default=512, help="Mini-batch size")
-    parser.add_argument("--epochs", type=int, default=4, help="PPO epochs per rollout")
+    parser.add_argument("--epochs", type=int, default=2, help="PPO epochs per rollout")
+    parser.add_argument("--target-kl", type=float, default=0.05, help="KL early stopping threshold (0=disabled)")
     parser.add_argument("--num-rollouts", type=int, default=100000, help="Total rollout iterations")
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Checkpoint directory")
     parser.add_argument("--log-interval", type=int, default=10, help="Log every N iterations")

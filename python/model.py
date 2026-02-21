@@ -1,9 +1,9 @@
 """
 model.py -- Actor-Critic MLP for PPO training.
 
-Shared trunk (256-256-128) with separate actor and critic heads.
-Actor outputs: 4 continuous means + 3 binary logits + 11 weapon logits.
-Critic outputs: scalar state value.
+Separate actor and critic networks (no shared trunk).
+Actor: 256-256-128 trunk → 18 outputs (4 continuous + 3 binary + 11 weapon).
+Critic: 256-256-128 trunk → 1 scalar value.
 
 Continuous actions use state-independent log_std (learned parameter).
 """
@@ -24,7 +24,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class ActorCritic(nn.Module):
-    """PPO Actor-Critic with hybrid action space."""
+    """PPO Actor-Critic with hybrid action space (separate networks)."""
 
     # Action dimensions
     CONTINUOUS_DIM = 4   # yaw_delta, pitch_delta, forwardmove, sidemove
@@ -35,8 +35,8 @@ class ActorCritic(nn.Module):
     def __init__(self, obs_dim=OBS_DIM):
         super().__init__()
 
-        # Shared trunk
-        self.trunk = nn.Sequential(
+        # Actor network (own trunk + head)
+        self.actor_trunk = nn.Sequential(
             layer_init(nn.Linear(obs_dim, 256)),
             nn.ReLU(),
             layer_init(nn.Linear(256, 256)),
@@ -44,32 +44,32 @@ class ActorCritic(nn.Module):
             layer_init(nn.Linear(256, 128)),
             nn.ReLU(),
         )
-
-        # Actor head: continuous means + binary logits + weapon logits
         self.actor = layer_init(nn.Linear(128, self.ACTOR_OUT), std=0.01)
 
         # Bias continuous actions: [yaw, pitch, forward, side]
-        # Bias forwardmove positive so agent actually explores the map
-        # Binary logits at indices [4, 5, 6] = [jump, crouch, attack]
         with torch.no_grad():
             self.actor.bias[2] = 0.3    # forward: slight tendency to move
             self.actor.bias[4] = -2.2   # jump: ~10%
             self.actor.bias[5] = -10.0  # crouch: effectively disabled (~0.005%)
             self.actor.bias[6] = -4.0   # attack: ~2% (avoid rocket suicide)
-            # Bias weapon logits toward index 0 (no switch)
             self.actor.bias[7] = 2.0    # weapon 0: no switch (strong preference)
 
-        # Critic head: scalar value
+        # Critic network (own trunk + head)
+        self.critic_trunk = nn.Sequential(
+            layer_init(nn.Linear(obs_dim, 256)),
+            nn.ReLU(),
+            layer_init(nn.Linear(256, 256)),
+            nn.ReLU(),
+            layer_init(nn.Linear(256, 128)),
+            nn.ReLU(),
+        )
         self.critic = layer_init(nn.Linear(128, 1), std=1.0)
 
         # State-independent log_std for continuous actions
-        # Higher std for movement (indices 2,3) so agent actually moves
-        # Yaw/pitch std ~0.6, movement std ~1.0
         self.action_log_std = nn.Parameter(torch.tensor([-0.5, -0.5, 0.0, 0.0]))
 
-    def forward(self, obs):
-        """Forward pass through shared trunk."""
-        return self.trunk(obs)
+        # Keep legacy 'trunk' attribute pointing to actor_trunk for BC model loading
+        self.trunk = self.actor_trunk
 
     def get_action_and_value(self, obs, action=None):
         """
@@ -77,17 +77,12 @@ class ActorCritic(nn.Module):
 
         If action is None: sample new action (for rollout collection).
         If action is provided: evaluate given action (for PPO update).
-
-        Args:
-            obs: [batch, obs_dim] tensor
-            action: dict with 'continuous', 'binary', 'weapon' tensors, or None
-
-        Returns:
-            dict with 'action', 'log_prob', 'entropy', 'value' (and sub-actions)
         """
-        features = self.forward(obs)
-        actor_out = self.actor(features)
-        value = self.critic(features).squeeze(-1)
+        actor_features = self.actor_trunk(obs)
+        actor_out = self.actor(actor_features)
+
+        critic_features = self.critic_trunk(obs)
+        value = self.critic(critic_features).squeeze(-1)
 
         # Split actor output
         cont_means = actor_out[:, :self.CONTINUOUS_DIM]
@@ -147,15 +142,11 @@ class ActorCritic(nn.Module):
 
     def get_value(self, obs):
         """Get state value only (for bootstrapping)."""
-        features = self.forward(obs)
+        features = self.critic_trunk(obs)
         return self.critic(features).squeeze(-1)
 
     def act(self, obs_np):
-        """
-        Convenience: numpy obs in, action dict out (for env.step).
-
-        Returns dict compatible with Q2AIEnv.step().
-        """
+        """Convenience: numpy obs in, action dict out (for env.step)."""
         with torch.no_grad():
             device = next(self.parameters()).device
             obs_t = torch.FloatTensor(obs_np).unsqueeze(0).to(device)
@@ -164,7 +155,6 @@ class ActorCritic(nn.Module):
             cont = result["continuous"][0].cpu().numpy()
 
             return {
-                # Scale continuous actions to game ranges
                 "yaw_delta": float(np.clip(cont[0] * 10.0, -10.0, 10.0)),
                 "pitch_delta": float(np.clip(cont[1] * 5.0, -5.0, 5.0)),
                 "forwardmove": float(np.clip(cont[2], -1.0, 1.0)),
@@ -176,11 +166,7 @@ class ActorCritic(nn.Module):
             }, float(result["log_prob"][0].item()), float(result["value"][0].item())
 
     def act_batch(self, obs_list):
-        """
-        Batched inference: list of N numpy obs in, lists of (action, log_prob, value) out.
-
-        One GPU round trip for all N envs instead of N separate calls.
-        """
+        """Batched inference for all N envs in one GPU round trip."""
         with torch.no_grad():
             device = next(self.parameters()).device
             obs_t = torch.FloatTensor(np.stack(obs_list)).to(device)
@@ -197,6 +183,7 @@ class ActorCritic(nn.Module):
             actions = []
             for i in range(len(obs_list)):
                 actions.append({
+                    # Clipped values for sending to game
                     "yaw_delta": float(np.clip(cont[i, 0] * 10.0, -10.0, 10.0)),
                     "pitch_delta": float(np.clip(cont[i, 1] * 5.0, -5.0, 5.0)),
                     "forwardmove": float(np.clip(cont[i, 2], -1.0, 1.0)),
@@ -205,6 +192,8 @@ class ActorCritic(nn.Module):
                     "crouch": int(crouches[i]),
                     "attack": int(attacks[i]),
                     "weapon": int(weapons[i]),
+                    # Raw (unclipped) model outputs for PPO buffer
+                    "_raw_continuous": cont[i].copy(),
                 })
 
             return actions, log_probs.tolist(), vals.tolist()

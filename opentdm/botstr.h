@@ -95,6 +95,11 @@ typedef struct zgcl_s {
     short       ctfstate;       // ctf state (kept for struct compat)
     edict_t     *followmate;    // follow
     float       matelock;       // team mate locking time
+
+    // stuck detection (10-second global check)
+    vec3_t      stuck_origin;       // position at last stuck check
+    int         stuck_check_frame;  // next frame to check
+    int         stuck_count;        // consecutive stuck checks failed
 } zgcl_t;
 
 #endif

@@ -42,26 +42,26 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 </head>
 <body>
 <h1>KaaN — Evolution Dashboard</h1>
-<p class="subtitle">Last updated: 2026-02-21 13:00:59 | KaaN: 0 vs Bot: ? | FPS: 125</p>
+<p class="subtitle">Last updated: 2026-02-21 21:23:30 | KaaN: 0 vs Bot: ? | FPS: 125</p>
 
 <div class="section">
 <h2>Current Stats</h2>
 <div class="stats">
-<div class="stat"><div class="value negative">-0.1843</div><div class="label">Step Reward</div></div>
+<div class="stat"><div class="value negative">-0.0191</div><div class="label">Step Reward</div></div>
 <div class="stat"><div class="value">0.0</div><div class="label">Avg Frags</div></div>
 <div class="stat"><div class="value">0</div><div class="label">Episodes</div></div>
-<div class="stat"><div class="value">768,000</div><div class="label">Total Steps</div></div>
-<div class="stat"><div class="value">20</div><div class="label">Iteration</div></div>
-<div class="stat"><div class="value">10.4</div><div class="label">Entropy</div></div>
+<div class="stat"><div class="value">576,000</div><div class="label">Total Steps</div></div>
+<div class="stat"><div class="value">45</div><div class="label">Iteration</div></div>
+<div class="stat"><div class="value">6.8</div><div class="label">Entropy</div></div>
 </div>
 </div>
 
 <div class="section">
 <h2>Milestones</h2>
 <div class="cards">
-<div class="card pending"><span class="icon">&#9744;</span><div class="title">Stop blind firing</div><div class="threshold">blind fire penalty -0.15/frame</div></div>
-<div class="card pending"><span class="icon">&#9744;</span><div class="title">Stop crouching</div><div class="threshold">crouch penalty -0.10/frame</div></div>
-<div class="card pending"><span class="icon">&#9744;</span><div class="title">Stop circling</div><div class="threshold">circling penalty -0.15/3s</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Stop blind firing</div><div class="threshold">blind fire penalty -0.15/frame</div></div>
+<div class="card progress"><span class="icon">&#9200;</span><div class="title">Stop crouching</div><div class="threshold">crouch penalty -0.10/frame</div></div>
+<div class="card progress"><span class="icon">&#9200;</span><div class="title">Stop circling</div><div class="threshold">circling penalty -0.15/3s</div></div>
 <div class="card pending"><span class="icon">&#9744;</span><div class="title">Switch weapons</div><div class="threshold">blaster penalty -0.02/frame</div></div>
 <div class="card pending"><span class="icon">&#9744;</span><div class="title">Move toward items</div><div class="threshold">pickups per life > 0.5</div></div>
 <div class="card done"><span class="icon">&#10004;</span><div class="title">Survive > 20 seconds</div><div class="threshold">avg life > 200 frames</div></div>
@@ -83,17 +83,36 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 <h2>Evolution Log</h2>
 <table>
 <tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Observation</th></tr>
-<tr><td>13:00</td><td>20</td><td>768,000</td><td class="negative">-0.1843</td><td>0.0</td><td>0</td><td>10.4</td><td>2.6</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>12:48</td><td>30</td><td>1,152,000</td><td class="negative">-0.1230</td><td>0.0</td><td>0</td><td>16.4</td><td>2.9</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>12:42</td><td>20</td><td>768,000</td><td class="negative">-0.1088</td><td>0.0</td><td>0</td><td>15.4</td><td>3.8</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>12:26</td><td>10</td><td>128,000</td><td class="negative">-0.1070</td><td>-1.0</td><td>166</td><td>11.4</td><td>33.7</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>12:07</td><td>1</td><td>51,200</td><td class="negative">-0.0794</td><td>-3.0</td><td>354</td><td>8.5</td><td>37.3</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>11:57</td><td>1</td><td>51,200</td><td class="negative">-0.0794</td><td>-3.0</td><td>354</td><td>8.5</td><td>37.3</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>10:59</td><td>5</td><td>15,360</td><td class="negative">-0.1799</td><td>-1.7</td><td>14</td><td>8.0</td><td>31.3</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>10:45</td><td>5</td><td>15,360</td><td class="negative">-0.0621</td><td>-0.2</td><td>25</td><td>8.3</td><td>38.6</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>10:28</td><td>5</td><td>15,360</td><td class="negative">-0.0846</td><td>-1.3</td><td>23</td><td>8.1</td><td>75.5</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>10:27</td><td>5</td><td>15,360</td><td class="negative">-0.0846</td><td>-1.3</td><td>23</td><td>8.1</td><td>75.5</td><td>Heavy penalties — bad habits dominating</td></tr>
-<tr><td>10:23</td><td>1</td><td>3,072</td><td class="negative">-0.0601</td><td>-1.0</td><td>1</td><td>7.0</td><td>59.8</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>21:23</td><td>45</td><td>576,000</td><td class="negative">-0.0191</td><td>0.0</td><td>0</td><td>6.8</td><td>0.0</td><td>Penalties decreasing — improving</td></tr>
+<tr><td>21:11</td><td>17</td><td>217,600</td><td class="negative">-0.0139</td><td>0.0</td><td>0</td><td>6.7</td><td>9.8</td><td>Penalties decreasing — improving</td></tr>
+<tr><td>21:01</td><td>12</td><td>153,600</td><td class="negative">-0.0165</td><td>0.0</td><td>0</td><td>6.7</td><td>7.1</td><td>Penalties decreasing — improving</td></tr>
+<tr><td>20:51</td><td>4</td><td>51,200</td><td class="negative">-0.0217</td><td>0.0</td><td>0</td><td>6.7</td><td>5.5</td><td>Still penalized — learning slowly</td></tr>
+<tr><td>20:41</td><td>5</td><td>64,000</td><td class="negative">-0.0097</td><td>0.0</td><td>0</td><td>6.9</td><td>63.3</td><td>Penalties decreasing — improving</td></tr>
+<tr><td>20:16</td><td>1070</td><td>41,088,000</td><td class="negative">-0.0571</td><td>0.0</td><td>0</td><td>10.8</td><td>341.2</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>20:06</td><td>1050</td><td>40,320,000</td><td class="negative">-0.0574</td><td>0.0</td><td>0</td><td>10.8</td><td>329.0</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>19:56</td><td>1025</td><td>39,360,000</td><td class="negative">-0.0548</td><td>0.0</td><td>0</td><td>10.8</td><td>312.6</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>19:46</td><td>1000</td><td>38,400,000</td><td class="negative">-0.0569</td><td>0.0</td><td>0</td><td>10.8</td><td>313.8</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>19:36</td><td>980</td><td>37,632,000</td><td class="negative">-0.0567</td><td>0.0</td><td>0</td><td>10.8</td><td>317.3</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>19:26</td><td>955</td><td>36,672,000</td><td class="negative">-0.0594</td><td>0.0</td><td>0</td><td>10.8</td><td>309.7</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>19:16</td><td>935</td><td>35,904,000</td><td class="negative">-0.0584</td><td>0.0</td><td>0</td><td>10.8</td><td>300.4</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>19:06</td><td>910</td><td>34,944,000</td><td class="negative">-0.0576</td><td>0.0</td><td>0</td><td>10.8</td><td>309.0</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>18:56</td><td>890</td><td>34,176,000</td><td class="negative">-0.0566</td><td>0.0</td><td>0</td><td>10.8</td><td>305.2</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>18:46</td><td>865</td><td>33,216,000</td><td class="negative">-0.0583</td><td>0.0</td><td>0</td><td>10.8</td><td>292.1</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>18:36</td><td>840</td><td>32,256,000</td><td class="negative">-0.0570</td><td>0.0</td><td>0</td><td>10.8</td><td>296.1</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>18:26</td><td>820</td><td>31,488,000</td><td class="negative">-0.0566</td><td>0.0</td><td>0</td><td>10.8</td><td>300.1</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>18:16</td><td>795</td><td>30,528,000</td><td class="negative">-0.0586</td><td>0.0</td><td>0</td><td>10.8</td><td>301.3</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>18:06</td><td>775</td><td>29,760,000</td><td class="negative">-0.0566</td><td>0.0</td><td>0</td><td>10.8</td><td>297.3</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>17:56</td><td>750</td><td>28,800,000</td><td class="negative">-0.0573</td><td>0.0</td><td>0</td><td>10.8</td><td>310.6</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>17:46</td><td>720</td><td>27,648,000</td><td class="negative">-0.0555</td><td>0.0</td><td>0</td><td>10.8</td><td>310.8</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>17:36</td><td>695</td><td>26,688,000</td><td class="negative">-0.0585</td><td>0.0</td><td>0</td><td>10.8</td><td>308.2</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>17:26</td><td>670</td><td>25,728,000</td><td class="negative">-0.0569</td><td>0.0</td><td>0</td><td>10.8</td><td>325.8</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>17:16</td><td>645</td><td>24,768,000</td><td class="negative">-0.0572</td><td>0.0</td><td>0</td><td>10.8</td><td>346.7</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>17:06</td><td>620</td><td>23,808,000</td><td class="negative">-0.0573</td><td>0.0</td><td>0</td><td>10.8</td><td>358.4</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>16:56</td><td>595</td><td>22,848,000</td><td class="negative">-0.0577</td><td>0.0</td><td>0</td><td>10.8</td><td>357.1</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>16:46</td><td>570</td><td>21,888,000</td><td class="negative">-0.0611</td><td>0.0</td><td>0</td><td>10.7</td><td>349.3</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>16:36</td><td>545</td><td>20,928,000</td><td class="negative">-0.0572</td><td>0.0</td><td>0</td><td>10.8</td><td>343.4</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>16:26</td><td>515</td><td>19,776,000</td><td class="negative">-0.0568</td><td>0.0</td><td>0</td><td>10.8</td><td>346.4</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>16:16</td><td>490</td><td>18,816,000</td><td class="negative">-0.0600</td><td>0.0</td><td>0</td><td>10.8</td><td>363.3</td><td>Heavy penalties — bad habits dominating</td></tr>
 
 </table>
 </div>
@@ -103,9 +122,9 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 const canvas = document.getElementById('chart');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
-const labels = ["10:23", "10:27", "10:28", "10:45", "10:59", "11:57", "12:07", "12:26", "12:42", "12:48", "13:00"];
-const sr = [-0.0601, -0.0846, -0.0846, -0.0621, -0.1799, -0.0794, -0.0794, -0.107, -0.1088, -0.123, -0.1843];
-const frags = [-1.0, -1.3, -1.3, -0.2, -1.7, -3.0, -3.0, -1.0, 0.0, 0.0, 0.0];
+const labels = ["10:23", "10:27", "10:28", "10:45", "10:59", "11:57", "12:07", "12:26", "12:42", "12:48", "13:00", "13:16", "13:26", "13:36", "13:46", "13:56", "14:06", "14:16", "14:26", "14:36", "14:46", "14:56", "15:06", "15:16", "15:26", "15:36", "15:46", "15:56", "16:06", "16:16", "16:26", "16:36", "16:46", "16:56", "17:06", "17:16", "17:26", "17:36", "17:46", "17:56", "18:06", "18:16", "18:26", "18:36", "18:46", "18:56", "19:06", "19:16", "19:26", "19:36", "19:46", "19:56", "20:06", "20:16", "20:41", "20:51", "21:01", "21:11", "21:23"];
+const sr = [-0.0601, -0.0846, -0.0846, -0.0621, -0.1799, -0.0794, -0.0794, -0.107, -0.1088, -0.123, -0.1843, -0.0559, -0.0585, -0.0593, -0.057, -0.0579, -0.0588, -0.0607, -0.0583, -0.0562, -0.0591, -0.0574, -0.0569, -0.0601, -0.0586, -0.0588, -0.0563, -0.0564, -0.0597, -0.06, -0.0568, -0.0572, -0.0611, -0.0577, -0.0573, -0.0572, -0.0569, -0.0585, -0.0555, -0.0573, -0.0566, -0.0586, -0.0566, -0.057, -0.0583, -0.0566, -0.0576, -0.0584, -0.0594, -0.0567, -0.0569, -0.0548, -0.0574, -0.0571, -0.0097, -0.0217, -0.0165, -0.0139, -0.0191];
+const frags = [-1.0, -1.3, -1.3, -0.2, -1.7, -3.0, -3.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
 function drawLine(data, color, label, yMin, yMax) {
     if (data.length < 2) return;

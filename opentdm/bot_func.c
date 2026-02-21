@@ -498,6 +498,37 @@ void Bot_Think(edict_t *self)
         }
     }
     else {
+        // Global stuck detection: every 100 frames (~10 sec at 10Hz),
+        // check if bot has barely moved. If stuck 2+ checks in a row,
+        // reset route and give random velocity to unstick.
+        if (self->client->zc.stuck_check_frame <= level.framenum) {
+            if (self->client->zc.stuck_check_frame > 0) {
+                vec3_t diff;
+                VectorSubtract(self->s.origin, self->client->zc.stuck_origin, diff);
+                if (VectorLength(diff) < 32.0f) {
+                    self->client->zc.stuck_count++;
+                    if (self->client->zc.stuck_count >= 2) {
+                        // Bot stuck for 20+ seconds - force unstick
+                        float yaw = random() * 360.0f;
+                        self->client->zc.route_trace = false;
+                        self->client->zc.routeindex = 0;
+                        self->client->zc.first_target = NULL;
+                        self->client->zc.second_target = NULL;
+                        self->s.angles[YAW] = yaw;
+                        self->client->zc.moveyaw = yaw;
+                        self->velocity[0] = cos(yaw * M_PI / 180.0f) * 300.0f;
+                        self->velocity[1] = sin(yaw * M_PI / 180.0f) * 300.0f;
+                        self->velocity[2] = 150.0f;
+                        self->client->zc.stuck_count = 0;
+                    }
+                } else {
+                    self->client->zc.stuck_count = 0;
+                }
+            }
+            VectorCopy(self->s.origin, self->client->zc.stuck_origin);
+            self->client->zc.stuck_check_frame = level.framenum + 100;
+        }
+
         Bots_Move_NORM(self);
         if (!self->inuse) {
             return;    // removed bot self
