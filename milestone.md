@@ -50,17 +50,19 @@ These are the signals that shape KaaN's behavior during PPO training:
 | Die | **-1.0** | Primary penalty |
 | Take damage | **-damage/100** | Learn to dodge |
 | Get stuck (speed < 20) | -0.01 | Don't stand still |
-| Move backward | **-0.01** | No backward circling |
-| Crouch (per frame) | **-0.03** | Crouching is a bad habit in duel |
+| Circling (< 128 units in 3s) | **-0.15** | Must explore, not circle in place |
+| Move backward | -0.01 | No backward circling |
+| Crouch (per frame) | **-0.10** | Crouching is never good in duel |
 | Shoot at visible enemy | +0.02 | Reward aimed fire |
-| Shoot blindly (no enemy) | **-0.08** | Strong penalty for spray-and-pray |
+| Shoot blindly (no enemy) | **-0.15** | Very harsh penalty for spray-and-pray |
+| Using blaster with better weapon | **-0.02** | Switch to a real weapon! |
 | Approach visible enemy | **+0.01** | Go fight, don't run away |
 | Retreat from enemy | -0.005 | Mild penalty (sometimes retreat is smart) |
 | Pick up health/armor | +0.2 | Learn to collect resources |
 | Pick up weapon | +0.3 | Learn to arm yourself |
 | Approach nearest item | +0.003/unit | Subtle pull toward items |
 
-**Design philosophy:** No free rewards for existing. No survival bonus, no undirected movement reward. The only way to earn positive reward is fighting (frags, aimed shots, approaching enemy) or picking up items. Circling backward gives only penalties.
+**Design philosophy:** No free rewards for existing. No survival bonus, no undirected movement reward. The only way to earn positive reward is fighting (frags, aimed shots, approaching enemy) or picking up items. Circling, crouching, blind-firing, and ignoring collected weapons are heavily punished.
 
 ---
 

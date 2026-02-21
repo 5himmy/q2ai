@@ -7,11 +7,13 @@
  *   +1.0  per frag
  *   -1.0  per death
  *   -damage/100 for damage taken
- *   -0.03  crouch penalty
+ *   -0.10  crouch penalty per frame
  *   -0.01  stuck penalty (speed < 20)
+ *   -0.15  circling penalty (< 128 units from checkpoint after 30 frames)
  *   -0.01  backward movement penalty
- *   -0.08  blind-fire penalty
+ *   -0.15  blind-fire penalty
  *   +0.02  shooting at visible enemy
+ *   -0.02  blaster penalty (has better weapon but won't switch)
  *   +0.2   health/armor pickup
  *   +0.3   weapon pickup
  *   +0.01  approaching enemy when visible
@@ -30,6 +32,8 @@ static int prev_pm_type;
 static int prev_inventory[MAX_ITEMS];
 static float prev_nearest_item_dist;
 static float prev_enemy_dist;
+static float checkpoint_pos[3];  // position snapshot every N frames
+static int checkpoint_timer;     // frames since last checkpoint
 static bool reward_initialized;
 
 float AI_Reward_Compute(void)
@@ -45,6 +49,8 @@ float AI_Reward_Compute(void)
         prev_pm_type = ps->pmove.pm_type;
         prev_nearest_item_dist = 99999.0f;
         prev_enemy_dist = 99999.0f;
+        VectorCopy(cl.predicted_origin, checkpoint_pos);
+        checkpoint_timer = 0;
         memcpy(prev_inventory, cl.inventory, sizeof(prev_inventory));
         reward_initialized = true;
         return 0.0f;
@@ -98,9 +104,24 @@ float AI_Reward_Compute(void)
             reward -= 0.01f;
         }
 
-        // Crouch penalty
+        // Crouch penalty (harsh — crouching is never good in duel)
         if (q2ai_shared_action.crouch) {
-            reward -= 0.03f;
+            reward -= 0.10f;
+        }
+
+        // Circling penalty: every 30 frames (~3s at 10Hz), check displacement
+        // from checkpoint. If less than 128 units away, penalize.
+        checkpoint_timer++;
+        if (checkpoint_timer >= 30) {
+            float dx = cl.predicted_origin[0] - checkpoint_pos[0];
+            float dy = cl.predicted_origin[1] - checkpoint_pos[1];
+            float displacement = sqrtf(dx*dx + dy*dy);
+            if (displacement < 128.0f) {
+                // Circling in place — penalize
+                reward -= 0.15f;
+            }
+            VectorCopy(cl.predicted_origin, checkpoint_pos);
+            checkpoint_timer = 0;
         }
     }
 
@@ -146,9 +167,23 @@ float AI_Reward_Compute(void)
     // Shooting rewards/penalties
     if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack) {
         if (!enemy_visible) {
-            reward -= 0.08f;  // blind fire: strong penalty
+            reward -= 0.15f;  // blind fire: very harsh penalty
         } else {
             reward += 0.02f;  // aimed fire: small reward
+        }
+    }
+
+    // Blaster penalty: if holding blaster (item 7) but owns any better weapon, penalize
+    // Item indices: 7=blaster, 8=SG, 9=SSG, 10=MG, 11=CG, 13=GL, 14=RL, 15=HB, 16=RG
+    if (cur_pm_type == PM_NORMAL && cur_health > 0) {
+        int selected = ps->stats[STAT_SELECTED_ITEM];
+        if (selected == 7) {  // holding blaster
+            // Check if we own anything better
+            if (cl.inventory[8] || cl.inventory[9] || cl.inventory[10] ||
+                cl.inventory[11] || cl.inventory[13] || cl.inventory[14] ||
+                cl.inventory[15] || cl.inventory[16]) {
+                reward -= 0.02f;  // switch to a real weapon!
+            }
         }
     }
 

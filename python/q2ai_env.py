@@ -216,17 +216,16 @@ class Q2AIEnv(gym.Env):
 
         return obs
 
-    def step(self, action):
-        """Send action, wait for next observation."""
-        # Write action and signal C
+    def send_action(self, action):
+        """Non-blocking: write action and signal C client."""
         self._write_action(action)
         self._sem_act.release()
 
-        # Wait for next observation from C
+    def recv_obs(self):
+        """Blocking: wait for next observation from C client."""
         try:
             self._sem_obs.acquire(timeout=self.obs_timeout)
         except posix_ipc.BusyError:
-            # Timeout — C client may be disconnected
             return np.zeros(OBS_DIM, dtype=np.float32), 0.0, True, False, {"timeout": True}
 
         state = self._read_state()
@@ -245,6 +244,11 @@ class Q2AIEnv(gym.Env):
         }
 
         return obs, reward, terminated, truncated, info
+
+    def step(self, action):
+        """Send action, wait for next observation."""
+        self.send_action(action)
+        return self.recv_obs()
 
     def reset(self, seed=None, options=None):
         """Wait for the agent to be alive and ready."""

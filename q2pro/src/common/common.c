@@ -1145,6 +1145,12 @@ void Qcommon_Frame(void)
         remaining = clientrem;
     }
 
+#ifdef Q2AI_HEADLESS
+    // Headless mode: sleep 2ms per frame to avoid 100% CPU spin.
+    // Server ticks at 10Hz (100ms), so 500 loops/sec is more than enough.
+    Sys_Sleep(2);
+#endif
+
     if (host_speeds->integer)
         time_after = Sys_Milliseconds();
 

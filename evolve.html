@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="refresh" content="60">
+<title>KaaN Evolution Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; padding: 20px; }
+h1 { color: #ff6b35; margin-bottom: 5px; }
+.subtitle { color: #888; margin-bottom: 20px; }
+.section { margin-bottom: 30px; }
+.section h2 { color: #4ecdc4; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+
+/* Milestone cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.card { padding: 15px; border-radius: 8px; border: 1px solid #333; }
+.card.done { background: #1a3a2a; border-color: #2ecc71; }
+.card.progress { background: #3a3a1a; border-color: #f39c12; }
+.card.pending { background: #1a1a2a; border-color: #555; }
+.card .icon { font-size: 24px; }
+.card .title { font-weight: bold; margin-top: 5px; }
+.card .threshold { color: #888; font-size: 12px; margin-top: 3px; }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.stat { background: #151520; padding: 15px; border-radius: 8px; text-align: center; }
+.stat .value { font-size: 28px; font-weight: bold; color: #ff6b35; }
+.stat .label { color: #888; font-size: 12px; margin-top: 5px; }
+.positive { color: #2ecc71; }
+.negative { color: #e74c3c; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #1a1a2a; color: #4ecdc4; padding: 8px; text-align: left; }
+td { padding: 6px 8px; border-bottom: 1px solid #222; }
+tr:hover { background: #151525; }
+
+/* Canvas */
+canvas { background: #151520; border-radius: 8px; padding: 10px; }
+</style>
+</head>
+<body>
+<h1>KaaN — Evolution Dashboard</h1>
+<p class="subtitle">Last updated: 2026-02-21 10:59:25 | KaaN: -2 vs Bot: ? | FPS: 125</p>
+
+<div class="section">
+<h2>Current Stats</h2>
+<div class="stats">
+<div class="stat"><div class="value negative">-0.1799</div><div class="label">Step Reward</div></div>
+<div class="stat"><div class="value">-1.7</div><div class="label">Avg Frags</div></div>
+<div class="stat"><div class="value">14</div><div class="label">Episodes</div></div>
+<div class="stat"><div class="value">15,360</div><div class="label">Total Steps</div></div>
+<div class="stat"><div class="value">5</div><div class="label">Iteration</div></div>
+<div class="stat"><div class="value">8.0</div><div class="label">Entropy</div></div>
+</div>
+</div>
+
+<div class="section">
+<h2>Milestones</h2>
+<div class="cards">
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Stop blind firing</div><div class="threshold">step_reward > -0.02</div></div>
+<div class="card progress"><span class="icon">&#9200;</span><div class="title">Stop crouching</div><div class="threshold">no crouch penalty</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Stop backward circling</div><div class="threshold">step_reward > 0</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Move toward items</div><div class="threshold">pickups per life > 0.5</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Survive > 20 seconds</div><div class="threshold">avg life > 200 frames</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Get first frag</div><div class="threshold">frags > 0</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Pick up weapons</div><div class="threshold">weapon pickups visible</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Navigate between rooms</div><div class="threshold">low stuck rate</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Aim at enemy</div><div class="threshold">aimed fire reward positive</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Consistent positive reward</div><div class="threshold">step_reward > 0.01</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Win a match</div><div class="threshold">frags > bot frags</div></div>
+
+</div>
+</div>
+
+<div class="section">
+<h2>Training History</h2>
+<canvas id="chart" width="900" height="300"></canvas>
+</div>
+
+<div class="section">
+<h2>Evolution Log</h2>
+<table>
+<tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Observation</th></tr>
+<tr><td>10:59</td><td>5</td><td>15,360</td><td class="negative">-0.1799</td><td>-1.7</td><td>14</td><td>8.0</td><td>31.3</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>10:45</td><td>5</td><td>15,360</td><td class="negative">-0.0621</td><td>-0.2</td><td>25</td><td>8.3</td><td>38.6</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>10:28</td><td>5</td><td>15,360</td><td class="negative">-0.0846</td><td>-1.3</td><td>23</td><td>8.1</td><td>75.5</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>10:27</td><td>5</td><td>15,360</td><td class="negative">-0.0846</td><td>-1.3</td><td>23</td><td>8.1</td><td>75.5</td><td>Heavy penalties — bad habits dominating</td></tr>
+<tr><td>10:23</td><td>1</td><td>3,072</td><td class="negative">-0.0601</td><td>-1.0</td><td>1</td><td>7.0</td><td>59.8</td><td>Heavy penalties — bad habits dominating</td></tr>
+
+</table>
+</div>
+
+<script>
+// Simple chart drawing
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const labels = ["10:23", "10:27", "10:28", "10:45", "10:59"];
+const sr = [-0.0601, -0.0846, -0.0846, -0.0621, -0.1799];
+const frags = [-1.0, -1.3, -1.3, -0.2, -1.7];
+
+function drawLine(data, color, label, yMin, yMax) {
+    if (data.length < 2) return;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+        const x = 60 + (i / (data.length - 1)) * (W - 80);
+        const y = H - 40 - ((data[i] - yMin) / (yMax - yMin)) * (H - 60);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = '12px sans-serif';
+    ctx.fillText(label, W - 70, ctx.canvas.height - data.length + 20);
+}
+
+// Background
+ctx.fillStyle = '#151520';
+ctx.fillRect(0, 0, W, H);
+
+// Zero line
+const allVals = [...sr, ...frags];
+const yMin = Math.min(-0.1, ...allVals) - 0.01;
+const yMax = Math.max(0.1, ...allVals) + 0.01;
+const zeroY = H - 40 - ((0 - yMin) / (yMax - yMin)) * (H - 60);
+ctx.strokeStyle = '#444';
+ctx.setLineDash([5, 5]);
+ctx.beginPath();
+ctx.moveTo(60, zeroY);
+ctx.lineTo(W - 20, zeroY);
+ctx.stroke();
+ctx.setLineDash([]);
+
+// Axis labels
+ctx.fillStyle = '#888';
+ctx.font = '11px sans-serif';
+ctx.fillText('0', 40, zeroY + 4);
+ctx.fillText(yMax.toFixed(2), 20, 25);
+ctx.fillText(yMin.toFixed(2), 20, H - 35);
+
+drawLine(sr, '#ff6b35', 'Step Reward', yMin, yMax);
+drawLine(frags, '#4ecdc4', 'Frags', yMin, yMax);
+
+// Legend
+ctx.fillStyle = '#ff6b35'; ctx.fillText('● Step Reward', W - 150, 20);
+ctx.fillStyle = '#4ecdc4'; ctx.fillText('● Frags', W - 150, 35);
+</script>
+</body>
+</html>

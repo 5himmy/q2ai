@@ -77,9 +77,11 @@ Server:27913 + KaaN[instance=3]  ─┘
   - +1.0 per frag, -1.0 per death
   - -damage/100 for damage taken
   - -0.01 stuck penalty (speed < 20), -0.01 backward movement penalty
-  - -0.03 crouch penalty per frame
+  - -0.15 circling penalty (< 128 units displacement in 30 frames)
+  - -0.10 crouch penalty per frame
   - +0.2 per health/armor pickup, +0.3 per weapon pickup
-  - -0.08 blind-fire penalty, +0.02 aimed fire reward
+  - -0.15 blind-fire penalty, +0.02 aimed fire reward
+  - -0.02 blaster penalty (has better weapon but won't switch)
   - +0.01 approaching visible enemy, -0.005 retreating from enemy
   - Item proximity reward (+0.003/unit approached, capped ±0.08)
   - No survival bonus, no undirected movement reward (prevents circle-running exploit)
@@ -113,16 +115,21 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Each KaaN uses unique `q2ai_instance` for separate shared memory
   - Single Python trainer connects to all N environments
 - [x] `q2ai_train.sh` — Control script (start/stop/restart/status/log)
+- [x] Demo extraction: 53 q2dm1 demos, 17,539 frames combined
+- [x] BC model retrained on full dataset (loss 0.098)
+- [x] Multi-instance training tested (6x parallel)
+- [x] Reward shaping iterated — removed free shaping, added directional incentives
+- [x] `python/monitor.py` — HTML evolution dashboard (auto-starts with training)
+  - Kanban-style milestone cards, training charts, server rcon queries
+  - Generates `evolve.html`, saves history to `evolve_data.json`
 
 #### In Progress:
-- [ ] Extract all David demos (54 q2dm1 .dm2 files) for behavior cloning
-- [ ] Retrain BC model with full demo dataset
-- [ ] Test multi-instance training (4x parallel)
+- [ ] Tune hyperparameters based on training curves
+- [ ] Train against skill-1 bots first, gradually increase
 
 #### Next:
-- [ ] Tune reward shaping and hyperparameters based on training curves
-- [ ] Train against skill-1 bots first, gradually increase
-- [ ] Reward curve logging and visualization
+- [ ] Reward curve analysis and visualization
+- [ ] Curriculum learning: increase bot skill as AI improves
 
 ### Phase 7 — 1v1 Mastery
 
@@ -184,6 +191,7 @@ AI generates per-frame actions converted to real player inputs (`usercmd_t`):
 | `model.py` | ActorCritic MLP (PPO + behavior cloning) |
 | `train.py` | PPO training loop (multi-instance, GPU) |
 | `imitate.py` | Behavior cloning from demo data |
+| `monitor.py` | HTML evolution dashboard (auto-starts with training) |
 | `test_shm_read.py` | Shared memory test script |
 
 ### Build
@@ -231,6 +239,20 @@ Each instance runs:
 - Shared memory `/q2ai_state_i` + semaphores for IPC
 
 The Python trainer connects to all N instances via `--num-envs N` and collects rollouts in round-robin.
+
+The monitor auto-starts with training and generates an HTML dashboard:
+- **Dashboard:** `evolve.html` (open in browser, auto-refreshes every 10 min)
+- **Data:** `evolve_data.json` (persistent history across restarts)
+- **Log:** `/tmp/monitor.log`
+
+Run monitor standalone:
+```bash
+# Manual check (single run)
+cd python && .venv/bin/python monitor.py --once
+
+# Custom interval (5 minutes)
+cd python && .venv/bin/python monitor.py --interval 300
+```
 
 ### Behavior Cloning (Demo Extraction)
 

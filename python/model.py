@@ -174,3 +174,37 @@ class ActorCritic(nn.Module):
                 "attack": int(result["attack"][0].item()),
                 "weapon": int(result["weapon"][0].item()),
             }, float(result["log_prob"][0].item()), float(result["value"][0].item())
+
+    def act_batch(self, obs_list):
+        """
+        Batched inference: list of N numpy obs in, lists of (action, log_prob, value) out.
+
+        One GPU round trip for all N envs instead of N separate calls.
+        """
+        with torch.no_grad():
+            device = next(self.parameters()).device
+            obs_t = torch.FloatTensor(np.stack(obs_list)).to(device)
+            result = self.get_action_and_value(obs_t)
+
+            cont = result["continuous"].cpu().numpy()
+            jumps = result["jump"].cpu().numpy()
+            crouches = result["crouch"].cpu().numpy()
+            attacks = result["attack"].cpu().numpy()
+            weapons = result["weapon"].cpu().numpy()
+            log_probs = result["log_prob"].cpu().numpy()
+            vals = result["value"].cpu().numpy()
+
+            actions = []
+            for i in range(len(obs_list)):
+                actions.append({
+                    "yaw_delta": float(np.clip(cont[i, 0] * 10.0, -10.0, 10.0)),
+                    "pitch_delta": float(np.clip(cont[i, 1] * 5.0, -5.0, 5.0)),
+                    "forwardmove": float(np.clip(cont[i, 2], -1.0, 1.0)),
+                    "sidemove": float(np.clip(cont[i, 3], -1.0, 1.0)),
+                    "jump": int(jumps[i]),
+                    "crouch": int(crouches[i]),
+                    "attack": int(attacks[i]),
+                    "weapon": int(weapons[i]),
+                })
+
+            return actions, log_probs.tolist(), vals.tolist()

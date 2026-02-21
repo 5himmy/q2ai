@@ -184,8 +184,9 @@ def train(args):
         print(f"Resuming from {args.resume}")
         model.load_state_dict(torch.load(args.resume, weights_only=True, map_location=device))
         with torch.no_grad():
+            model.actor.bias[4] = min(model.actor.bias[4].item(), -5.0)   # jump: conservative
             model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)  # crouch: disabled
-            model.actor.bias[6] = min(model.actor.bias[6].item(), -3.0)   # attack: ~5% base rate
+            model.actor.bias[6] = min(model.actor.bias[6].item(), -5.0)   # attack: ~1% base rate
             print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
@@ -232,15 +233,21 @@ def train(args):
         buffer.reset()
         rollout_rewards = []
 
-        # Collect rollout from all envs in round-robin
+        # Collect rollout — vectorized: batch inference + pipelined I/O
         for t in range(steps_per_env):
+            # 1. Batch inference: one GPU forward pass for all envs
+            actions, log_probs, values = model.act_batch(obs_list)
+
+            # 2. Send all actions (non-blocking)
             for e in range(num_envs):
-                obs = obs_list[e]
-                action, log_prob, value = model.act(obs)
-                next_obs, reward, terminated, truncated, info = envs[e].step(action)
+                envs[e].send_action(actions[e])
+
+            # 3. Receive all observations (parallel wait — all servers tick simultaneously)
+            for e in range(num_envs):
+                next_obs, reward, terminated, truncated, info = envs[e].recv_obs()
                 rollout_rewards.append(reward)
 
-                buffer.add(obs, action, log_prob, reward, value, terminated)
+                buffer.add(obs_list[e], actions[e], log_probs[e], reward, values[e], terminated)
                 total_timesteps += 1
                 ep_reward[e] += reward
                 ep_length[e] += 1
