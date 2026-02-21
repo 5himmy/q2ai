@@ -184,7 +184,9 @@ def train(args):
         print(f"Resuming from {args.resume}")
         model.load_state_dict(torch.load(args.resume, weights_only=True, map_location=device))
         with torch.no_grad():
-            model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)
+            model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)  # crouch: disabled
+            model.actor.bias[6] = min(model.actor.bias[6].item(), -3.0)   # attack: ~5% base rate
+            print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
 

@@ -73,14 +73,16 @@ Server:27913 + KaaN[instance=3]  ─┘
 
 ### Phase 5 — Reward System + Episode Management: COMPLETE
 
-- `ai_reward.c`: Frame-over-frame deltas for frags, deaths, damage, items, survival
+- `ai_reward.c`: Frame-over-frame deltas — combat/items are primary, no free shaping
   - +1.0 per frag, -1.0 per death
   - -damage/100 for damage taken
-  - +0.01 survival bonus per frame alive
-  - +0.01 movement reward (proportional to speed), -0.02 stuck penalty
+  - -0.01 stuck penalty (speed < 20), -0.01 backward movement penalty
+  - -0.03 crouch penalty per frame
   - +0.2 per health/armor pickup, +0.3 per weapon pickup
-  - -0.02 blind-fire penalty (shooting without visible enemy)
+  - -0.08 blind-fire penalty, +0.02 aimed fire reward
+  - +0.01 approaching visible enemy, -0.005 retreating from enemy
   - Item proximity reward (+0.003/unit approached, capped ±0.08)
+  - No survival bonus, no undirected movement reward (prevents circle-running exploit)
 - `ai_control.c`: Auto-connect, auto-join team, auto-respawn, auto-ready, name override
 - Full episode loop: connect → join team → ready → play → die → respawn → repeat
 - Cvars: `q2ai_team`, `q2ai_name`, `q2ai_autoconnect`, `q2ai_server`, `q2ai_instance`
@@ -184,7 +186,7 @@ AI generates per-frame actions converted to real player inputs (`usercmd_t`):
 | `imitate.py` | Behavior cloning from demo data |
 | `test_shm_read.py` | Shared memory test script |
 
-### Build & Run
+### Build
 
 ```bash
 # Build headless client
@@ -193,20 +195,58 @@ meson compile -C q2pro/builddir_q2ai q2ai
 # Build opentdm (with bot auto-ready fix)
 cd opentdm && make
 
-# Single instance training
+# Copy binary to runtime directory
+cp q2pro/builddir_q2ai/q2ai /home/oky/q2ai/q2ai
+```
+
+### Training (Multi-Instance)
+
+The training script manages everything: servers, KaaN clients, and the Python trainer.
+
+```bash
+cd /home/oky/q2ai
+
+# Start training with 6 parallel instances (default)
 ./q2ai_train.sh start
 
-# Multi-instance training (4 parallel)
-./q2ai_train.sh start 4
+# Start with custom number of instances
+./q2ai_train.sh start 8
 
-# Extract demos for behavior cloning
+# Check progress
+./q2ai_train.sh log
+
+# Check running processes
+./q2ai_train.sh status
+
+# Stop everything
+./q2ai_train.sh stop
+
+# Restart (stop + start)
+./q2ai_train.sh restart 8
+```
+
+Each instance runs:
+- A q2proded server on port 27910+i with a scripted bot
+- A KaaN headless client with `q2ai_instance=i` connecting to that server
+- Shared memory `/q2ai_state_i` + semaphores for IPC
+
+The Python trainer connects to all N instances via `--num-envs N` and collects rollouts in round-robin.
+
+### Behavior Cloning (Demo Extraction)
+
+```bash
+# Extract single demo
 ./q2ai_demo +set q2ai_demo 1 +demo filename
 
-# Train BC model
-python imitate.py --data demo_extracts/all_demos_combined.bin --epochs 200
+# Batch extract all q2dm1 demos
+bash /tmp/extract_all_demos.sh
+
+# Train BC model from extracted data
+cd python
+.venv/bin/python imitate.py --data /home/oky/q2ai/demo_extracts/all_demos_combined.bin --epochs 200
 
 # Run PPO with BC warm start
-python train.py --resume model_bc.pt --num-envs 4
+.venv/bin/python train.py --resume model_bc.pt --num-envs 8
 ```
 
 ### Bot Configuration (`opentdm/`)
