@@ -66,9 +66,25 @@ These are the signals that shape KaaN's behavior during PPO training:
 
 ---
 
+## Training Infrastructure
+
+- **300 parallel instances** (300 servers + 300 KaaN clients) on 12-core/16GB/RTX 3070
+- **Continuous episodes** — no resets on death. KaaN auto-respawns in C, Python sees an unbroken observation stream. The -1.0 death reward still teaches that dying is bad, but there's no episode boundary overhead.
+- **~1,300 steps/sec** throughput, ~30s per iteration (38,400 steps/iter with rollout length 128)
+- **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt, loss 0.098)
+- Batched GPU inference, threaded parallel I/O, semaphore resync between PPO updates
+
+---
+
 ## Stage 1: Newborn (current stage)
 
-KaaN spawns into q2dm1 with David's muscle memory from behavior cloning. He moves forward, shoots when he sees someone, and sometimes jumps. But he has no understanding of *why* — he's mimicking without comprehension.
+KaaN spawns into q2dm1 with muscle memory from behavior cloning. He moves forward, shoots when he sees someone, and sometimes jumps. But he has no understanding of *why* — he's mimicking without comprehension.
+
+**Current observations (960k steps, 25 iterations):**
+- step_reward: -0.09 to -0.13 (penalties dominate — blind-fire, crouch, circling)
+- 0 frags so far — hasn't learned to aim at enemy yet
+- Entropy rising (8.3 → 15.9) — exploring its action space, good sign
+- KL stabilizing (35 → 2.5) — policy updates settling down after initial divergence
 
 **Signs of progress:**
 - Doesn't stand still (moves forward most of the time)
@@ -76,7 +92,7 @@ KaaN spawns into q2dm1 with David's muscle memory from behavior cloning. He move
 - Survives more than 5 seconds per life
 - Occasionally picks up items by accident
 
-**Metrics:** step_reward > 0, episode length > 50 frames, blind-fire rate < 30%
+**Metrics:** step_reward > 0, mean_frags > 0, blind-fire rate < 30%
 
 ---
 
@@ -85,13 +101,13 @@ KaaN spawns into q2dm1 with David's muscle memory from behavior cloning. He move
 KaaN learns that being alive is good and dying is bad. He starts avoiding damage — backing away from rockets, not running off ledges. He discovers that health and armor pickups make him harder to kill.
 
 **Signs of progress:**
-- Average episode length > 200 frames (~20 seconds)
+- Stays alive for 20+ seconds between deaths
 - Picks up health/armor when nearby (not by accident)
 - Doesn't suicide with own rockets
 - Moves away from danger (negative health delta = retreat)
 - Frags are still mostly lucky
 
-**Metrics:** deaths per minute < 3, pickup rate > 1 per life
+**Metrics:** deaths per minute < 3, pickup rate > 1 per life, step_reward consistently > 0
 
 ---
 
