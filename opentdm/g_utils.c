@@ -357,9 +357,8 @@ void G_StuffCmd(edict_t *e, const char *fmt, ...) {
     va_list argptr;
     char text[512];
 
-    if (e && !e->client->pers.connected) {
-        TDM_Error("G_StuffCmd: Bad client %d for '%s'",
-                (int) (e - g_edicts - 1), fmt);
+    if (e && (ENT_IS_BOT(e) || !e->client->pers.connected)) {
+        return;
     }
 
     va_start(argptr, fmt);

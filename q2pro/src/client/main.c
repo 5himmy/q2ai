@@ -18,6 +18,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // cl_main.c  -- client main loop
 
 #include "client.h"
+#ifdef Q2AI_HEADLESS
+#include "ai_bridge.h"
+#endif
 
 cvar_t  *rcon_address;
 
@@ -3332,13 +3335,30 @@ unsigned CL_Frame(unsigned msec)
     // predict all unacknowledged movements
     CL_PredictMovement();
 
+#ifdef Q2AI_HEADLESS
+    // AI control: auto-connect, auto-join, respawn
+    AI_Control_Frame();
+
+    // AI bridge: exchange observations/actions with Python trainer
+    if (cls.state == ca_active) {
+        AI_Demo_Frame();                // demo mode: record training data (cvar-gated)
+        AI_Bridge_ExchangeFrame();      // live mode: train via shared memory
+    } else {
+        // In demo mode, call frame even outside ca_active to detect demo end
+        AI_Demo_Frame();
+    }
+#endif
+
     Con_RunConsole();
 
+#ifndef Q2AI_HEADLESS
     SCR_RunCinematic();
 
     UI_Frame(main_extra);
+#endif
 
     if (ref_frame) {
+#ifndef Q2AI_HEADLESS
         // update the screen
         if (host_speeds->integer)
             time_before_ref = Sys_Milliseconds();
@@ -3347,16 +3367,21 @@ unsigned CL_Frame(unsigned msec)
 
         if (host_speeds->integer)
             time_after_ref = Sys_Milliseconds();
+#endif
 
         ref_extra -= ref_msec;
         R_FRAMES++;
 
+#ifndef Q2AI_HEADLESS
         // update audio after the 3D view was drawn
         S_Update();
+#endif
     } else if (sync_mode == SYNC_SLEEP_10) {
+#ifndef Q2AI_HEADLESS
         // force audio and effects update if not rendering
         CL_CalcViewValues();
         S_Update();
+#endif
     }
 
     // check connection timeout
@@ -3381,9 +3406,11 @@ bool CL_ProcessEvents(void)
         return false;
     }
 
+#ifndef Q2AI_HEADLESS
     CL_RunRefresh();
 
     IN_Frame();
+#endif
 
     NET_GetPackets(NS_CLIENT, CL_PacketEvent);
 
@@ -3420,6 +3447,12 @@ void CL_Init(void)
     // start with full screen console
     cls.key_dest = KEY_CONSOLE;
 
+#ifdef Q2AI_HEADLESS
+    CL_InitRefresh();   // sets cls.ref_initialized = true (stub)
+    // skip OGG_Init, S_Init, IN_Init for headless
+    CL_InitLocal();
+    cls.active = ACT_ACTIVATED;  // no window focus events in headless mode
+#else
     CL_InitRefresh();
 
     OGG_Init();
@@ -3427,6 +3460,7 @@ void CL_Init(void)
 
     CL_InitLocal();
     IN_Init();
+#endif
 
 #if USE_ZLIB
     Q_assert(inflateInit2(&cls.z, -MAX_WBITS) == Z_OK);
@@ -3439,7 +3473,9 @@ void CL_Init(void)
 
     HTTP_Init();
 
+#ifndef Q2AI_HEADLESS
     UI_OpenMenu(UIMENU_DEFAULT);
+#endif
 
     Con_PostInit();
     Con_RunConsole();
@@ -3448,6 +3484,11 @@ void CL_Init(void)
     cl_cmdbuf.text = cl_cmdbuf_text;
     cl_cmdbuf.maxsize = sizeof(cl_cmdbuf_text);
     cl_cmdbuf.exec = exec_server_string;
+
+#ifdef Q2AI_HEADLESS
+    AI_Control_Init();
+    AI_Demo_Init();
+#endif
 
     Cvar_Set("cl_running", "1");
 }
@@ -3483,9 +3524,14 @@ void CL_Shutdown(void)
 #endif
 
     HTTP_Shutdown();
+#ifdef Q2AI_HEADLESS
+    AI_Demo_Shutdown();
+    AI_Bridge_Shutdown();
+#else
     OGG_Shutdown();
     S_Shutdown();
     IN_Shutdown();
+#endif
     Con_Shutdown();
     CL_ShutdownRefresh();
     CL_WriteConfig();

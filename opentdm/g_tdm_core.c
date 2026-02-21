@@ -413,6 +413,8 @@ edict_t* TDM_ClosestTeammate(edict_t *ent) {
 /**
  * A match has just started (end of countdown)
  */
+static qboolean match_starting;
+
 void TDM_BeginMatch(void) {
     edict_t *ent;
 
@@ -420,6 +422,7 @@ void TDM_BeginMatch(void) {
     level.match_end_framenum = level.framenum
             + SECS_TO_FRAMES(g_match_time->value);
     tdm_match_status = MM_PLAYING;
+    match_starting = true;
 
     //must setup teamplayers before level, or we lose item spawn stats
     TDM_SetupMatchInfoAndTeamPlayers();
@@ -458,6 +461,9 @@ void TDM_BeginMatch(void) {
             respawn(ent);
         }
     }
+
+    match_starting = false;
+    CountPlayers();
 
     TDM_UpdateConfigStrings(false);
 }
@@ -2039,6 +2045,11 @@ void UpdateMatchStatus(void) {
     }
 
     if (tdm_match_status < MM_PLAYING || tdm_match_status == MM_SCOREBOARD) {
+        return;
+    }
+
+    // Don't end match while TDM_BeginMatch is still respawning players
+    if (match_starting) {
         return;
     }
 

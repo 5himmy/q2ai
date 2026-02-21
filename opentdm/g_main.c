@@ -19,6 +19,7 @@
  */
 
 #include "g_local.h"
+#include "g_tdm_cmds.h"
 
 game_locals_t game;
 level_locals_t level;
@@ -445,6 +446,17 @@ void G_RunFrame(void) {
         for (int b = 0; b < (int)g_spawn_bots->value; b++)
             Bot_SpawnOne();
         bots_spawned = true;
+    }
+
+    // Auto-ready bots during warmup so matches start automatically
+    if (tdm_match_status == MM_WARMUP) {
+        for (i = 0; i < game.maxclients; i++) {
+            ent = g_edicts + 1 + i;
+            if (ent->inuse && ent->client && ENT_IS_BOT(ent)
+                && ent->client->pers.team && !ent->client->resp.ready) {
+                TDM_Ready_f(ent);
+            }
+        }
     }
 
     // see if we need to start/stop a server demo

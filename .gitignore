@@ -9,3 +9,13 @@ CLAUDE.md
 
 # Dependencies / build dirs
 deps/
+
+# Python
+python/.venv/
+python/__pycache__/
+python/checkpoints/
+python/logs/
+python/*.pt
+
+# Meson build dirs
+q2pro/builddir*/

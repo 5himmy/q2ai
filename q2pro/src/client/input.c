@@ -18,6 +18,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 // cl.input.c  -- builds an intended movement command to send to the server
 
 #include "client.h"
+#ifdef Q2AI_HEADLESS
+#include "ai_bridge.h"
+#endif
 #include "common/crc.h"
 
 static cvar_t    *cl_nodelta;
@@ -607,6 +610,20 @@ void CL_UpdateCmd(int msec)
     // add to milliseconds of time to apply the move
     cl.cmd.msec += msec;
 
+#ifdef Q2AI_HEADLESS
+    // AI mode: apply action from shared memory instead of keyboard/mouse
+    AI_Input_Apply(&q2ai_shared_action);
+
+    cl.localmove[0] = q2ai_shared_action.forwardmove * 400.0f;
+    cl.localmove[1] = q2ai_shared_action.sidemove * 400.0f;
+    if (q2ai_shared_action.jump)
+        cl.localmove[2] = 400.0f;
+    else if (q2ai_shared_action.crouch)
+        cl.localmove[2] = -400.0f;
+
+    CL_ClampSpeed(cl.localmove);
+    CL_ClampPitch();
+#else
     // adjust viewangles
     CL_AdjustAngles(msec);
 
@@ -624,6 +641,7 @@ void CL_UpdateCmd(int msec)
     CL_ClampSpeed(cl.localmove);
 
     CL_ClampPitch();
+#endif
 
     cl.cmd.angles[0] = ANGLE2SHORT(cl.viewangles[0]);
     cl.cmd.angles[1] = ANGLE2SHORT(cl.viewangles[1]);
@@ -752,19 +770,33 @@ void CL_FinalizeCmd(void)
 //
 // figure button bits
 //
+#ifdef Q2AI_HEADLESS
+    if (q2ai_shared_action.attack)
+        cl.cmd.buttons |= BUTTON_ATTACK;
+#else
     if (in_attack.state & 3)
         cl.cmd.buttons |= BUTTON_ATTACK;
     if (in_use.state & 3)
         cl.cmd.buttons |= BUTTON_USE;
+#endif
 
+#ifndef Q2AI_HEADLESS
     if (cls.key_dest == KEY_GAME && Key_AnyKeyDown()) {
         cl.cmd.buttons |= BUTTON_ANY;
     }
+#endif
 
     if (cl.cmd.msec > 250) {
         cl.cmd.msec = 100;        // time was unreasonable
     }
 
+#ifdef Q2AI_HEADLESS
+    // AI mode: movement already set by CL_UpdateCmd
+    cl.cmd.forwardmove = cl.localmove[0];
+    cl.cmd.sidemove = cl.localmove[1];
+    cl.cmd.upmove = cl.localmove[2];
+    cl.cmd.impulse = q2ai_shared_action.weapon;
+#else
     // rebuild the movement vector
     VectorClear(move);
 
@@ -784,6 +816,7 @@ void CL_FinalizeCmd(void)
     cl.cmd.upmove = move[2];
 
     cl.cmd.impulse = in_impulse;
+#endif
 
     // save this command off for prediction
     cl.cmdNumber++;

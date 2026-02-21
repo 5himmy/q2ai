@@ -358,6 +358,23 @@ void CL_PrepRefresh(void)
     if (!cl.mapname[0])
         return;     // no map loaded
 
+#ifdef Q2AI_HEADLESS
+    // Headless: load BSP for collision/prediction, skip visual registration
+    CL_RegisterBspModels();
+    CL_RegisterVWepModels();
+    CL_RegisterSounds();
+
+    // Load clientinfo names (skip model/skin handles)
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        name = cl.configstrings[cl.csr.playerskins + i];
+        if (!name[0])
+            continue;
+        CL_ParsePlayerSkin(cl.clientinfo[i].name, cl.clientinfo[i].model_name,
+                           cl.clientinfo[i].skin_name, name);
+    }
+
+    Com_Printf("Q2AI: Map '%s' loaded (headless)\n", cl.mapname);
+#else
     // register models, pics, and skins
     R_BeginRegistration(cl.mapname);
 
@@ -409,6 +426,7 @@ void CL_PrepRefresh(void)
 
     // start the cd track
     OGG_Play();
+#endif
 }
 
 /*

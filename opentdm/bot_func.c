@@ -561,6 +561,9 @@ void InitializeBot(edict_t *ent, int botindex)
     // Mark as not a real connected client (bots have no network connection)
     client->pers.connected = false;
 
+    // Mark as already joined so PutClientInServer doesn't reset team via TDM_SetupClient
+    client->pers.joinstate = JS_JOINED;
+
     // Assign team based on Bot[].team (alternates A/B in Bot_InitDefaults)
     if (Bot[botindex].team == 1) {
         client->pers.team = TEAM_A;

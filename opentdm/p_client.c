@@ -1082,12 +1082,14 @@ void PutClientInServer(edict_t *ent) {
     index = ent - g_edicts - 1;
     client = ent->client;
 
-    // clear everything but the persistent data
+    // clear everything but the persistent data (and bot state)
     saved = client->pers;
     respsaved = client->resp;
+    zgcl_t zc_saved = client->zc;
     memset(client, 0, sizeof(*client));
     client->resp = respsaved;
     client->pers = saved;
+    client->zc = zc_saved;
     client->clientNum = ent - g_edicts - 1;
 
     // clear entity values
@@ -1109,7 +1111,7 @@ void PutClientInServer(edict_t *ent) {
     ent->waterlevel = 0;
     ent->watertype = 0;
     ent->flags &= ~FL_NO_KNOCKBACK;
-    ent->svflags = 0;
+    ent->svflags = ENT_IS_BOT(ent) ? SVF_MONSTER : 0;
     ent->health = 100;
     ent->max_health = 100;
     VectorCopy(mins, ent->mins);

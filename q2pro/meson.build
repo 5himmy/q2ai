@@ -443,6 +443,66 @@ executable('q2proded', common_src, server_src,
   install:               system_wide,
 )
 
+# Q2AI headless client - stripped q2pro for AI training
+# Uses all client code but stubs renderer/sound/video
+q2ai_client_src = [
+  'src/client/ascii.c',
+  'src/client/console.c',
+  'src/client/demo.c',
+  'src/client/download.c',
+  'src/client/effects.c',
+  'src/client/entities.c',
+  'src/client/input.c',
+  'src/client/keys.c',
+  'src/client/locs.c',
+  'src/client/main.c',
+  'src/client/newfx.c',
+  'src/client/parse.c',
+  'src/client/precache.c',
+  'src/client/predict.c',
+  'src/client/screen.c',
+  'src/client/tent.c',
+  'src/client/ai_stubs.c',
+  'src/client/ai_observe.c',
+  'src/client/ai_input.c',
+  'src/client/ai_bridge.c',
+  'src/client/ai_reward.c',
+  'src/client/ai_control.c',
+  'src/client/ai_demo.c',
+  'src/common/async.c',
+  'src/server/commands.c',
+  'src/server/entities.c',
+  'src/server/game.c',
+  'src/server/init.c',
+  'src/server/main.c',
+  'src/server/send.c',
+  'src/server/user.c',
+  'src/server/world.c',
+  'src/shared/m_flash.c',
+]
+
+q2ai_deps = common_deps
+if not win32
+  q2ai_deps += dependency('threads')
+  librt = cc.find_library('rt', required: false)
+  if librt.found()
+    q2ai_deps += librt
+  endif
+endif
+
+if curl.found()
+  q2ai_client_src += 'src/client/http.c'
+endif
+
+executable('q2ai', common_src, q2ai_client_src,
+  dependencies:          q2ai_deps,
+  include_directories:   'inc',
+  gnu_symbol_visibility: 'hidden',
+  link_args:             exe_link_args,
+  c_args:                ['-DUSE_CLIENT=1', '-DQ2AI_HEADLESS=1', engine_args],
+  install:               false,
+)
+
 shared_library('game' + cpu, game_src,
   name_prefix:           '',
   dependencies:          game_deps,
