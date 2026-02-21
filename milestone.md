@@ -68,10 +68,14 @@ These are the signals that shape KaaN's behavior during PPO training:
 
 ## Training Infrastructure
 
-- **300 parallel instances** (300 servers + 300 KaaN clients) on 12-core/16GB/RTX 3070
-- **Continuous episodes** — no resets on death. KaaN auto-respawns in C, Python sees an unbroken observation stream. The -1.0 death reward still teaches that dying is bad, but there's no episode boundary overhead.
-- **~1,300 steps/sec** throughput, ~30s per iteration (38,400 steps/iter with rollout length 128)
-- **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt, loss 0.098)
+- **KaaN V1.1** — 300 parallel instances on 12-core/16GB/RTX 3070
+- **Continuous episodes** — no resets on death. Auto-respawn in C, continuous observation stream.
+- **~1,500 steps/sec** throughput, ~26s per iteration (38,400 steps/iter)
+- **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt)
+- **Reward scaling** — 10x multiplier so value function gets meaningful gradients
+- **Observation normalization** — running mean/std (Welford's algorithm), clips to [-5, 5]
+- **Batch size 512** — 300 gradient updates/iter (was 1,200 with batch 128)
+- **Entropy fix** — log_std clamped [-2.0, 0.5], entropy_coef 0.003 (prevents runaway)
 - Batched GPU inference, threaded parallel I/O, semaphore resync between PPO updates
 
 ---
@@ -80,11 +84,11 @@ These are the signals that shape KaaN's behavior during PPO training:
 
 KaaN spawns into q2dm1 with muscle memory from behavior cloning. He moves forward, shoots when he sees someone, and sometimes jumps. But he has no understanding of *why* — he's mimicking without comprehension.
 
-**Current observations (960k steps, 25 iterations):**
-- step_reward: -0.09 to -0.13 (penalties dominate — blind-fire, crouch, circling)
-- 0 frags so far — hasn't learned to aim at enemy yet
-- Entropy rising (8.3 → 15.9) — exploring its action space, good sign
-- KL stabilizing (35 → 2.5) — policy updates settling down after initial divergence
+**Current observations (V1.1, iteration 1):**
+- step_reward: -0.02 (improved from -0.10 with obs normalization)
+- value_loss: 4.27 (value function learning, was 0.13 before reward scaling)
+- Entropy: 7.2 (stable, no runaway)
+- 0 frags so far
 
 **Signs of progress:**
 - Doesn't stand still (moves forward most of the time)

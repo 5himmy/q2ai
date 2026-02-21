@@ -95,7 +95,7 @@ class ActorCritic(nn.Module):
         weapon_logits = actor_out[:, self.CONTINUOUS_DIM + self.BINARY_DIM:]
 
         # Distributions
-        cont_std = torch.clamp(self.action_log_std, -20, 2).exp()
+        cont_std = torch.clamp(self.action_log_std, -2.0, 0.5).exp()
         cont_dist = Normal(cont_means, cont_std)
         jump_dist = Bernoulli(logits=binary_logits[:, 0])
         crouch_dist = Bernoulli(logits=binary_logits[:, 1])

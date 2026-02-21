@@ -26,6 +26,44 @@ import torch.nn as nn
 from model import ActorCritic
 from q2ai_env import OBS_DIM, Q2AIEnv
 
+REWARD_SCALE = 10.0  # Scale up small rewards (~-0.1) so value function learns faster
+
+
+class RunningNormalizer:
+    """Running mean/std observation normalizer (Welford's algorithm)."""
+
+    def __init__(self, shape, clip=5.0):
+        self.mean = np.zeros(shape, dtype=np.float64)
+        self.var = np.ones(shape, dtype=np.float64)
+        self.count = 1e-4
+        self.clip = clip
+
+    def update(self, batch):
+        """Update running stats with a batch of observations."""
+        batch = np.asarray(batch, dtype=np.float64)
+        batch_mean = batch.mean(axis=0)
+        batch_var = batch.var(axis=0)
+        batch_count = batch.shape[0]
+        self._update_from_moments(batch_mean, batch_var, batch_count)
+
+    def _update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        total = self.count + batch_count
+        new_mean = self.mean + delta * batch_count / total
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        m2 = m_a + m_b + delta**2 * self.count * batch_count / total
+        self.mean = new_mean
+        self.var = m2 / total
+        self.count = total
+
+    def normalize(self, obs):
+        """Normalize observation(s) using running stats."""
+        return np.clip(
+            (np.asarray(obs) - self.mean) / (np.sqrt(self.var) + 1e-8),
+            -self.clip, self.clip
+        ).astype(np.float32)
+
 
 class RolloutBuffer:
     """Fixed-size buffer for storing one rollout of PPO transitions."""
@@ -163,8 +201,9 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
 def train(args):
     """Main training loop with multi-instance support."""
     num_envs = args.num_envs
-    print(f"Q2AI Training — KaaN[V1.0]")
-    print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {args.rollout_len}")
+    print(f"Q2AI Training — KaaN[V1.1]")
+    print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {args.rollout_len}, "
+          f"Batch: {args.batch_size}, Reward scale: {REWARD_SCALE}x")
 
     # Device selection
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -188,9 +227,15 @@ def train(args):
             model.actor.bias[4] = min(model.actor.bias[4].item(), -5.0)   # jump: conservative
             model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)  # crouch: disabled
             model.actor.bias[6] = min(model.actor.bias[6].item(), -5.0)   # attack: ~1% base rate
+            # Clamp log_std back to sensible range (may have inflated from entropy bonus)
+            model.action_log_std.data.clamp_(-2.0, 0.5)
             print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
+            print(f"  Log_std: {model.action_log_std.data.tolist()}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
+
+    # Observation normalizer (running mean/std)
+    obs_normalizer = RunningNormalizer(OBS_DIM)
 
     # Total rollout size = rollout_len * num_envs (more data per iteration)
     steps_per_env = args.rollout_len
@@ -227,7 +272,9 @@ def train(args):
 
     # Reset all envs (parallel)
     print(f"Resetting {num_envs} environment(s)...")
-    obs_list = list(executor.map(lambda env: env.reset()[0], envs))
+    raw_obs_list = list(executor.map(lambda env: env.reset()[0], envs))
+    obs_normalizer.update(raw_obs_list)
+    obs_list = [obs_normalizer.normalize(o) for o in raw_obs_list]
     print(f"Ready! Starting training loop ({num_envs}x parallel).\n")
 
     for iteration in range(1, args.num_rollouts + 1):
@@ -244,8 +291,10 @@ def train(args):
         for env in envs:
             env.send_action(noop)
         fresh = list(executor.map(lambda env: env.recv_obs(), envs))
+        raw_obs_batch = [fresh[e][0] for e in range(num_envs)]
+        obs_normalizer.update(raw_obs_batch)
         for e in range(num_envs):
-            obs_list[e] = fresh[e][0]
+            obs_list[e] = obs_normalizer.normalize(raw_obs_batch[e])
 
         # Collect rollout — batch inference + threaded parallel I/O
         for t in range(steps_per_env):
@@ -261,17 +310,20 @@ def train(args):
 
             # 4. Process results and reset terminated envs
             reset_envs = []
+            raw_obs_batch = [results[e][0] for e in range(num_envs)]
+            obs_normalizer.update(raw_obs_batch)
             for e in range(num_envs):
-                next_obs, reward, terminated, truncated, info = results[e]
+                next_obs_raw, reward, terminated, truncated, info = results[e]
                 rollout_rewards.append(reward)
+                scaled_reward = reward * REWARD_SCALE
 
-                buffer.add(obs_list[e], actions[e], log_probs[e], reward, values[e], terminated)
+                buffer.add(obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated)
                 total_timesteps += 1
-                ep_reward[e] += reward
+                ep_reward[e] += reward  # track unscaled for logging
                 ep_length[e] += 1
                 ep_frags[e] = info.get("frags", ep_frags[e])
 
-                obs_list[e] = next_obs
+                obs_list[e] = obs_normalizer.normalize(next_obs_raw)
 
                 if terminated:
                     episode_rewards.append(ep_reward[e])
@@ -286,10 +338,10 @@ def train(args):
             # 5. Reset terminated envs in parallel
             if reset_envs:
                 reset_results = list(executor.map(lambda e: (e, envs[e].reset()), reset_envs))
-                for e, (obs, _info) in reset_results:
-                    obs_list[e] = obs
+                for e, (obs_raw, _info) in reset_results:
+                    obs_list[e] = obs_normalizer.normalize(obs_raw)
 
-        # Bootstrap value (use first env's obs as representative)
+        # Bootstrap value (obs_list is already normalized)
         with torch.no_grad():
             last_value = model.get_value(
                 torch.FloatTensor(obs_list[0]).unsqueeze(0).to(device)
@@ -362,11 +414,11 @@ if __name__ == "__main__":
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument("--clip-eps", type=float, default=0.2, help="PPO clip epsilon")
-    parser.add_argument("--entropy-coef", type=float, default=0.01, help="Entropy bonus coefficient")
+    parser.add_argument("--entropy-coef", type=float, default=0.003, help="Entropy bonus coefficient")
     parser.add_argument("--value-coef", type=float, default=0.5, help="Value loss coefficient")
     parser.add_argument("--max-grad-norm", type=float, default=0.5, help="Max gradient norm")
     parser.add_argument("--rollout-len", type=int, default=512, help="Steps per rollout per env")
-    parser.add_argument("--batch-size", type=int, default=128, help="Mini-batch size")
+    parser.add_argument("--batch-size", type=int, default=512, help="Mini-batch size")
     parser.add_argument("--epochs", type=int, default=4, help="PPO epochs per rollout")
     parser.add_argument("--num-rollouts", type=int, default=100000, help="Total rollout iterations")
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Checkpoint directory")

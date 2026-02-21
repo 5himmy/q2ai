@@ -134,13 +134,21 @@ Server:27913 + KaaN[instance=3]  ─┘
 - [x] `python/monitor.py` — HTML evolution dashboard (auto-starts with training)
   - Kanban-style milestone cards, training charts, server rcon queries
   - Generates `evolve.html`, saves history to `evolve_data.json`
+- [x] Entropy fix: log_std clamped [-2.0, 0.5], entropy_coef 0.01 → 0.003
+  - Prevented entropy runaway (was 16.4 and climbing, now plateaus ~10)
+- [x] Reward scaling: 10x multiplier so value function learns faster
+  - step_r was ~-0.1 (too small), now ~-1.0 (meaningful gradient signal)
+- [x] Observation normalization: running mean/std (Welford's algorithm)
+  - Adaptive normalization on top of fixed scaling, clips to [-5, 5]
+- [x] Batch size: 128 → 512 (reduces gradient updates from 1,200 to 300 per iteration)
+  - Faster iterations (26s vs 33s), more stable gradients
 
 #### In Progress:
-- [ ] Tune hyperparameters based on training curves (entropy rising, KL stabilizing)
-- [ ] Train against skill-1 bots, monitor for first frags
+- [ ] Train against skill-1 bots, monitor for first frags (KaaN V1.1 running)
 
 #### Next:
-- [ ] Reward curve analysis and visualization
+- [ ] Multi-client per server (4 KaaN per server, cut 300 servers to 75)
+- [ ] Lower cl_maxfps to 10, increase Sys_Sleep to 50ms (20-30% CPU savings)
 - [ ] Curriculum learning: increase bot skill as AI improves
 
 ### Phase 7 — 1v1 Mastery
