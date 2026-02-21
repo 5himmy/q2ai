@@ -92,8 +92,8 @@ Server:27913 + KaaN[instance=3]  ─┘
 ### Phase 6 — Training Pipeline: IN PROGRESS
 
 #### Completed:
-- [x] `python/model.py` — ActorCritic MLP (256-256-128 trunk, actor+critic heads)
-  - Hybrid action space: 4 continuous + 3 binary + 11 weapon logits
+- [x] `python/model.py` — ActorCritic with hybrid action space
+  - 4 continuous + 3 binary + 11 weapon logits
   - State-independent learned log_std for continuous actions
   - Orthogonal initialization, bias tuning for safe initial behavior
   - `act_batch()` — batched N-env inference in one GPU forward pass
@@ -130,7 +130,7 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Auto-respawn in C (`ai_bridge.c`), death penalty (-1.0) still teaches
   - Eliminates Python-side reset overhead entirely (0 episodes in logs)
 - [x] CPU optimization: `Sys_Sleep(2)` in headless main loop, `cl_maxfps 30`
-- [x] Reward shaping iterated — removed free shaping, added directional incentives
+- [x] Reward shaping V1.4 — damage dealt via STAT_FLASHES, hit confirmation, tighter aim, reduced shaping
 - [x] `python/monitor.py` — HTML evolution dashboard (auto-starts with training)
   - Kanban-style milestone cards, training charts, server rcon queries
   - Generates `evolve.html`, saves history to `evolve_data.json`
@@ -144,11 +144,23 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Faster iterations (26s vs 33s), more stable gradients
 
 #### In Progress:
-- [ ] Train against skill-1 bots, monitor for first frags (KaaN V1.1 running)
+- [ ] V1.4 training: damage dealt reward, 200 instances on 2box6
 
-#### Next:
-- [ ] Multi-client per server (4 KaaN per server, cut 300 servers to 75)
-- [ ] Lower cl_maxfps to 10, increase Sys_Sleep to 50ms (20-30% CPU savings)
+#### Next — LSTM Memory (V2.0):
+- [ ] Add LSTM layer to both actor and critic networks
+  - Architecture: obs → encoder (256) → LSTM (256 hidden) → actor/critic heads
+  - LSTM gives temporal memory: track enemy behind walls, lead projectiles, time items
+  - Hidden state (h, c) persisted across frames, reset on death/respawn
+- [ ] Modify `train.py` for sequence-based PPO
+  - Collect rollouts as sequences (not shuffled individual steps)
+  - Truncated BPTT: split rollouts into T-length chunks (T=32 or 64)
+  - Pass hidden states between chunks within same episode
+  - Zero hidden state at episode boundaries (death/respawn)
+- [ ] Modify `act_batch()` to carry LSTM hidden states between frames
+  - Store (h, c) per environment instance
+  - Reset hidden state when death detected
+- [ ] Retrain BC model with LSTM architecture from human demos
+- [ ] Multi-client per server (4 KaaN per server, cut 200 servers to 50)
 - [ ] Curriculum learning: increase bot skill as AI improves
 
 ### Phase 7 — 1v1 Mastery
@@ -208,7 +220,7 @@ AI generates per-frame actions converted to real player inputs (`usercmd_t`):
 |------|---------|
 | `q2ai_env.py` | Gymnasium environment (89-dim obs, hybrid actions) |
 | `q2ai_structs.py` | ctypes mirrors of `ai_bridge.h` |
-| `model.py` | ActorCritic MLP (PPO + behavior cloning) |
+| `model.py` | ActorCritic network (PPO + behavior cloning, LSTM planned) |
 | `train.py` | PPO training loop (multi-instance, GPU) |
 | `imitate.py` | Behavior cloning from demo data |
 | `monitor.py` | HTML evolution dashboard (auto-starts with training) |

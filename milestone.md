@@ -79,6 +79,7 @@ These are the signals that shape KaaN's behavior during PPO training:
 - **KaaN V1.4** — 200 parallel instances on 12-core/16GB/RTX 3070
 - **Map:** 2box6 (tiny box, constant combat, 70-135 deaths per iteration)
 - **Separate Actor/Critic networks** — no shared trunk (V1.2 fix: value gradients were destroying policy)
+- **Architecture:** MLP (256-256-128) → LSTM planned for V2.0 (temporal memory for enemy tracking, item timing)
 - **Continuous episodes** — no resets on death. Auto-respawn in C, continuous observation stream.
 - **~2,000 steps/sec** throughput, ~14s per iteration (25,600 steps/iter at 200 instances)
 - **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt)
@@ -108,10 +109,21 @@ KaaN trains in 2box6 — a tiny box map with constant combat. He spawns with all
 **Signs of progress:**
 - Doesn't stand still (moves forward most of the time)
 - Stopped crouching (penalty worked)
-- Getting positive reward from aim tracking and approaching enemy
-- Occasional lucky kills from rocket splash damage
+- Deaths trending down slightly (135 → 85-95 range)
+- Occasional kills (0-6 frags per iteration across 200 instances)
 
 **Metrics:** step_reward > 0.01, frags > 5 per iteration, frag/death ratio > 0.1
+
+**Next architectural upgrade — LSTM Memory (V2.0):**
+Without memory, KaaN plays every frame like it's his first. He can't:
+- Track enemy behind walls (forgets they exist instantly)
+- Lead projectile weapons (needs velocity history to predict)
+- Time item respawns (mega health every 20-30s)
+- Learn movement patterns (strafe jumping requires frame-to-frame coordination)
+
+V2.0 adds LSTM layer: obs → encoder (256) → LSTM (256 hidden) → actor/critic heads.
+Hidden state persisted across frames, reset on death. PPO training uses truncated BPTT
+with sequence chunks (T=32-64). This is mandatory for competitive Quake 2.
 
 ---
 
