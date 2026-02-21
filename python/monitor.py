@@ -40,6 +40,14 @@ STAGES = [
     {"name": "Win a match", "check": "win", "threshold": "frags > bot frags"},
 ]
 
+# Architecture milestones — update status when shipping new model versions
+ARCH_MILESTONES = [
+    {"name": "V1.0 MLP Baseline", "status": "done", "threshold": "91\u2192256\u2192256\u2192128\u219218 separate A/C"},
+    {"name": "V2.0 LSTM Memory", "status": "done", "threshold": "encoder(91\u2192256) + LSTM(256\u2192256)"},
+    {"name": "V2.5 Grouped Encoder", "status": "done", "threshold": "Fourier pos + entity attention + 2-layer fusion"},
+    {"name": "V3.0 Self-Play", "status": "pending", "threshold": "train against copies of itself"},
+]
+
 
 def rcon_query(port, command):
     """Send rcon command to q2pro server and return response."""
@@ -216,6 +224,21 @@ def generate_html(history, milestones, latest, server_info):
             icon = "&#9744;"
         milestone_html += f'<div class="card {cls}"><span class="icon">{icon}</span><div class="title">{s["name"]}</div><div class="threshold">{s["threshold"]}</div></div>\n'
 
+    # Architecture milestone cards
+    arch_milestone_html = ""
+    for s in ARCH_MILESTONES:
+        status = s["status"]
+        if status == "done":
+            cls = "done"
+            icon = "&#10004;"
+        elif status == "progress":
+            cls = "progress"
+            icon = "&#9200;"
+        else:
+            cls = "pending"
+            icon = "&#9744;"
+        arch_milestone_html += f'<div class="card {cls}"><span class="icon">{icon}</span><div class="title">{s["name"]}</div><div class="threshold">{s["threshold"]}</div></div>\n'
+
     # History rows
     history_rows = ""
     for h in reversed(history[-30:]):
@@ -319,6 +342,13 @@ canvas {{ background: #151520; border-radius: 8px; padding: 10px; }}
 <h2>Milestones</h2>
 <div class="cards">
 {milestone_html}
+</div>
+</div>
+
+<div class="section">
+<h2>Architecture Milestones</h2>
+<div class="cards">
+{arch_milestone_html}
 </div>
 </div>
 

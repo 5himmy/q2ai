@@ -60,20 +60,37 @@ print(f"Loading model from: {ckpt_path}")
 model = ActorCritic(obs_dim=OBS_DIM)
 state = torch.load(ckpt_path, map_location='cpu', weights_only=False)
 
-# Handle both raw state_dict and wrapped checkpoint formats
+# Extract state_dict from wrapped checkpoint formats
 if isinstance(state, dict) and 'model' in state:
-    model.load_state_dict(state['model'], strict=False)
+    state_dict = state['model']
     ckpt_meta = state
 elif isinstance(state, dict) and 'model_state_dict' in state:
-    model.load_state_dict(state['model_state_dict'], strict=False)
+    state_dict = state['model_state_dict']
     ckpt_meta = state
 elif isinstance(state, dict) and any(k.startswith('actor') or k.startswith('trunk') or k.startswith('self_encoder') for k in state.keys()):
-    model.load_state_dict(state, strict=False)
+    state_dict = state
     ckpt_meta = {}
 else:
-    model.load_state_dict(state, strict=False)
+    state_dict = state
     ckpt_meta = {}
 
+# Migrate old checkpoint formats — skip incompatible weights
+keys_to_skip = set()
+for k, v in state_dict.items():
+    # Old trunk/encoder weights can't map to grouped encoders
+    if k.startswith('trunk.') or k.startswith('actor_trunk.') or k.startswith('critic_trunk.'):
+        keys_to_skip.add(k)
+    elif k.startswith('actor_encoder.') or k.startswith('critic_encoder.'):
+        keys_to_skip.add(k)
+    # Old heads with wrong input dim (128 vs 256)
+    elif k in ('actor.weight', 'critic.weight') and v.shape[1] != 256:
+        keys_to_skip.add(k)
+
+if keys_to_skip:
+    print(f"  Skipping {len(keys_to_skip)} incompatible keys from old checkpoint")
+    state_dict = {k: v for k, v in state_dict.items() if k not in keys_to_skip}
+
+model.load_state_dict(state_dict, strict=False)
 model.eval()
 print(f"Model loaded. OBS_DIM={OBS_DIM}, params={sum(p.numel() for p in model.parameters()):,}")
 
