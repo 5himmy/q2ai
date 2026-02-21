@@ -58,13 +58,16 @@ if ckpt_path is None:
 print(f"Loading model from: {ckpt_path}")
 
 model = ActorCritic(obs_dim=OBS_DIM)
-state = torch.load(ckpt_path, map_location='cpu', weights_only=True)
+state = torch.load(ckpt_path, map_location='cpu', weights_only=False)
 
 # Handle both raw state_dict and wrapped checkpoint formats
-if isinstance(state, dict) and 'model_state_dict' in state:
+if isinstance(state, dict) and 'model' in state:
+    model.load_state_dict(state['model'], strict=False)
+    ckpt_meta = state
+elif isinstance(state, dict) and 'model_state_dict' in state:
     model.load_state_dict(state['model_state_dict'], strict=False)
     ckpt_meta = state
-elif isinstance(state, dict) and any(k.startswith('actor') or k.startswith('trunk') for k in state.keys()):
+elif isinstance(state, dict) and any(k.startswith('actor') or k.startswith('trunk') or k.startswith('self_encoder') for k in state.keys()):
     model.load_state_dict(state, strict=False)
     ckpt_meta = {}
 else:
@@ -206,14 +209,14 @@ for i in range(11):
 """
 
 # ---------------------------------------------------------------------------
-# 5. SVG Architecture Diagram
+# 5. SVG Architecture Diagram — V2.5 Grouped Encoder
 # ---------------------------------------------------------------------------
 
-SVG_W = 1100
-SVG_H = 620
+SVG_W = 1200
+SVG_H = 780
 
 def make_svg():
-    """Generate the architecture SVG as a string."""
+    """Generate the V2.5 grouped encoder architecture SVG."""
     lines = []
     lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SVG_W} {SVG_H}" '
                  f'width="100%" height="auto" style="max-width:{SVG_W}px">')
@@ -236,6 +239,18 @@ def make_svg():
     <stop offset="0%" stop-color="#e67e22"/>
     <stop offset="100%" stop-color="#d35400"/>
   </linearGradient>
+  <linearGradient id="gFourier" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#e74c3c"/>
+    <stop offset="100%" stop-color="#c0392b"/>
+  </linearGradient>
+  <linearGradient id="gEntity" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f39c12"/>
+    <stop offset="100%" stop-color="#d68910"/>
+  </linearGradient>
+  <linearGradient id="gFusion" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#2c3e50"/>
+    <stop offset="100%" stop-color="#1a252f"/>
+  </linearGradient>
   <filter id="shadow">
     <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
   </filter>
@@ -245,9 +260,9 @@ def make_svg():
     lines.append(f'<rect width="{SVG_W}" height="{SVG_H}" fill="#0d0d15" rx="10"/>')
 
     # Title
-    lines.append('<text x="550" y="30" text-anchor="middle" fill="#888" '
+    lines.append('<text x="600" y="30" text-anchor="middle" fill="#888" '
                  'font-family="Segoe UI,system-ui,sans-serif" font-size="14">'
-                 'KaaN Neural Network Architecture</text>')
+                 'KaaN V2.5 — Grouped Encoder + Entity Attention + Fourier Position</text>')
 
     # Helper: draw a layer node
     def node(x, y, w, h, label, sublabel, grad_id, dim_text=None):
@@ -255,14 +270,14 @@ def make_svg():
         r.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="6" '
                  f'fill="url(#{grad_id})" filter="url(#shadow)" opacity="0.9"/>')
         r.append(f'<text x="{x + w/2}" y="{y + h/2 - 4}" text-anchor="middle" '
-                 f'fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" '
+                 f'fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" '
                  f'font-weight="bold">{label}</text>')
-        r.append(f'<text x="{x + w/2}" y="{y + h/2 + 12}" text-anchor="middle" '
+        r.append(f'<text x="{x + w/2}" y="{y + h/2 + 10}" text-anchor="middle" '
                  f'fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" '
-                 f'font-size="11">{sublabel}</text>')
+                 f'font-size="10">{sublabel}</text>')
         if dim_text:
-            r.append(f'<text x="{x + w/2}" y="{y - 6}" text-anchor="middle" '
-                     f'fill="#999" font-family="monospace" font-size="10">{dim_text}</text>')
+            r.append(f'<text x="{x + w/2}" y="{y - 5}" text-anchor="middle" '
+                     f'fill="#999" font-family="monospace" font-size="9">{dim_text}</text>')
         return '\n'.join(r)
 
     # Helper: draw a connection line
@@ -270,182 +285,251 @@ def make_svg():
         return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
                 f'stroke="{color}" stroke-width="1.5" opacity="0.6"/>')
 
-    # Helper: draw a bundled connection (multiple lines for "dense" look)
-    def dense_conn(x1, y1, x2, y2, color='#555', n=5):
-        r = []
-        for i in range(n):
-            off = (i - n//2) * 3
-            r.append(f'<line x1="{x1}" y1="{y1 + off}" x2="{x2}" y2="{y2 + off}" '
-                     f'stroke="{color}" stroke-width="0.8" opacity="0.3"/>')
-        # Center line solid
-        r.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-                 f'stroke="{color}" stroke-width="1.5" opacity="0.5"/>')
-        return '\n'.join(r)
+    def arrow_conn(x1, y1, x2, y2, color='#555'):
+        return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+                f'stroke="{color}" stroke-width="1.5" opacity="0.6" '
+                f'marker-end="url(#arrowhead)"/>')
 
-    # Layout: two networks side by side
-    # Input node (shared concept, drawn twice)
-    # Actor: top half, Critic: bottom half
+    # Node dimensions
+    nw = 120
+    nh = 44
 
-    nw = 110  # node width
-    nh = 50   # node height
+    # ============================================================
+    # SECTION 1: Input Observation (left column)
+    # ============================================================
+    obs_x = 30
+    obs_y = 60
+    lines.append(node(obs_x, obs_y, 100, 40, 'Observation', f'{OBS_DIM} dims', 'gInput', 'input'))
 
-    # ---- ACTOR NETWORK (top) ----
-    actor_y_base = 80
-    lines.append('<text x="60" y="65" fill="#3a7bd5" font-family="Segoe UI,system-ui,sans-serif" '
-                 'font-size="16" font-weight="bold">Actor Network</text>')
+    # ============================================================
+    # SECTION 2: Group Encoders (5 parallel streams)
+    # ============================================================
+    group_x = 170  # left edge of group encoder column
+    enc_x = 340    # left edge of encoder output column
+    gap = 58       # vertical gap between groups
 
-    # Input
-    ax_in = 40
-    lines.append(node(ax_in, actor_y_base, nw, nh, 'Input', f'{OBS_DIM} features', 'gInput', f'dim={OBS_DIM}'))
+    # --- Self State ---
+    g0_y = 50
+    lines.append(conn(obs_x + 100, obs_y + 20, group_x, g0_y + 20, '#8e44ad'))
+    lines.append(node(group_x, g0_y, 140, nh, 'Self State', 'pos(3)+vel+ang+stats+alive', 'gInput', '14 raw'))
 
-    # Hidden 1
-    ax_h1 = 200
-    lines.append(dense_conn(ax_in + nw, actor_y_base + nh//2, ax_h1, actor_y_base + nh//2, '#7D5BA6'))
-    lines.append(node(ax_h1, actor_y_base, nw, nh, 'Dense+ReLU', '256 units', 'gActor', 'dim=256'))
+    # Fourier sub-node
+    fourier_x = group_x + 10
+    fourier_y = g0_y + nh + 2
+    lines.append(f'<rect x="{fourier_x}" y="{fourier_y}" width="120" height="18" rx="3" '
+                 f'fill="url(#gFourier)" opacity="0.7"/>')
+    lines.append(f'<text x="{fourier_x + 60}" y="{fourier_y + 13}" text-anchor="middle" '
+                 f'fill="#fff" font-family="monospace" font-size="9">Fourier pos(3→27)</text>')
 
-    # Hidden 2
-    ax_h2 = 360
-    lines.append(dense_conn(ax_h1 + nw, actor_y_base + nh//2, ax_h2, actor_y_base + nh//2, '#4A7BD5'))
-    lines.append(node(ax_h2, actor_y_base, nw, nh, 'Dense+ReLU', '256 units', 'gActor', 'dim=256'))
+    lines.append(conn(group_x + 140, g0_y + nh//2, enc_x, g0_y + nh//2, '#8e44ad'))
+    lines.append(node(enc_x, g0_y, nw, nh, 'Self Encoder', 'Linear(38→96)+ReLU', 'gActor', '96 dims'))
 
-    # Hidden 3
-    ax_h3 = 520
-    lines.append(dense_conn(ax_h2 + nw, actor_y_base + nh//2, ax_h3, actor_y_base + nh//2, '#4A7BD5'))
-    lines.append(node(ax_h3, actor_y_base, nw, nh, 'Dense+ReLU', '128 units', 'gActor', 'dim=128'))
+    # --- Inventory ---
+    g1_y = g0_y + gap + 12
+    lines.append(conn(obs_x + 100, obs_y + 20, group_x, g1_y + 20, '#8e44ad'))
+    lines.append(node(group_x, g1_y, 140, nh, 'Inventory', 'wep_1h+owned+ammo', 'gInput', '27 dims'))
+    lines.append(conn(group_x + 140, g1_y + nh//2, enc_x, g1_y + nh//2, '#8e44ad'))
+    lines.append(node(enc_x, g1_y, nw, nh, 'Inv Encoder', 'Linear(27→64)+ReLU', 'gActor', '64 dims'))
+
+    # --- Enemy ---
+    g2_y = g1_y + gap
+    lines.append(conn(obs_x + 100, obs_y + 20, group_x, g2_y + 20, '#8e44ad'))
+    lines.append(node(group_x, g2_y, 140, nh, 'Enemy', 'vis+rel_xyz+dist+angle', 'gInput', '7 dims'))
+    lines.append(conn(group_x + 140, g2_y + nh//2, enc_x, g2_y + nh//2, '#8e44ad'))
+    lines.append(node(enc_x, g2_y, nw, nh, 'Enemy Encoder', 'Linear(7→64)+ReLU', 'gActor', '64 dims'))
+
+    # --- Entities (with attention) ---
+    g3_y = g2_y + gap
+    lines.append(conn(obs_x + 100, obs_y + 20, group_x, g3_y + 20, '#8e44ad'))
+    lines.append(node(group_x, g3_y, 140, nh, 'Entities (8x5)', '8 × [xyz+active+type]', 'gEntity', '40 dims'))
+    lines.append(conn(group_x + 140, g3_y + nh//2, enc_x, g3_y + nh//2, '#f39c12'))
+    lines.append(node(enc_x, g3_y, nw, nh, 'Entity Attn', 'shared(5→64)+pool', 'gEntity', '64 dims'))
+
+    # Attention sub-label
+    attn_y = g3_y + nh + 2
+    lines.append(f'<rect x="{enc_x + 5}" y="{attn_y}" width="110" height="18" rx="3" '
+                 f'fill="url(#gEntity)" opacity="0.6"/>')
+    lines.append(f'<text x="{enc_x + 60}" y="{attn_y + 13}" text-anchor="middle" '
+                 f'fill="#fff" font-family="monospace" font-size="9">softmax attention</text>')
+
+    # --- Game State (passthrough) ---
+    g4_y = g3_y + gap + 12
+    lines.append(conn(obs_x + 100, obs_y + 20, group_x, g4_y + 20, '#8e44ad'))
+    lines.append(node(group_x, g4_y, 140, nh, 'Game State', 'frags+enemy+time', 'gInput', '3 dims'))
+    # passthrough arrow
+    lines.append(conn(group_x + 140, g4_y + nh//2, enc_x + nw, g4_y + nh//2, '#666'))
+    lines.append(f'<text x="{enc_x + 60}" y="{g4_y + nh//2 - 6}" text-anchor="middle" '
+                 f'fill="#666" font-family="monospace" font-size="9">passthrough (3)</text>')
+
+    # ============================================================
+    # SECTION 3: Fusion (shared)
+    # ============================================================
+    fusion_x = enc_x + nw + 40
+    fusion_y = (g0_y + g4_y + nh) // 2 - nh//2
+
+    # Connection lines from all encoders to fusion
+    for gy in [g0_y, g1_y, g2_y, g3_y, g4_y]:
+        lines.append(conn(enc_x + nw, gy + nh//2, fusion_x, fusion_y + nh//2, '#555'))
+
+    lines.append(node(fusion_x, fusion_y, 130, nh, 'Fusion Layer 1', 'Linear(291→256)+ReLU', 'gFusion', '291→256'))
+    fusion2_y = fusion_y + nh + 12
+    lines.append(conn(fusion_x + 65, fusion_y + nh, fusion_x + 65, fusion2_y, '#555'))
+    lines.append(node(fusion_x, fusion2_y, 130, nh, 'Fusion Layer 2', 'Linear(256→256)+ReLU', 'gFusion', '256'))
+
+    # ============================================================
+    # SECTION 4: Split into Actor and Critic LSTMs
+    # ============================================================
+    split_x = fusion_x + 130 + 30
+    lstm_w = 120
+    lstm_h = nh
+
+    # Actor LSTM
+    actor_lstm_y = fusion2_y - 50
+    lines.append(conn(fusion_x + 130, fusion2_y + nh//2, split_x, actor_lstm_y + lstm_h//2, '#3a7bd5'))
+    lines.append(node(split_x, actor_lstm_y, lstm_w, lstm_h, 'Actor LSTM', '256→256', 'gActor', 'recurrent'))
+
+    # Critic LSTM
+    critic_lstm_y = fusion2_y + 50
+    lines.append(conn(fusion_x + 130, fusion2_y + nh//2, split_x, critic_lstm_y + lstm_h//2, '#27ae60'))
+    lines.append(node(split_x, critic_lstm_y, lstm_w, lstm_h, 'Critic LSTM', '256→256', 'gCritic', 'recurrent'))
+
+    # ============================================================
+    # SECTION 5: Heads and Outputs
+    # ============================================================
+    head_x = split_x + lstm_w + 30
+    out_x = head_x + nw + 20
 
     # Actor head
-    ax_head = 680
-    lines.append(dense_conn(ax_h3 + nw, actor_y_base + nh//2, ax_head, actor_y_base + nh//2, '#4A7BD5'))
-    lines.append(node(ax_head, actor_y_base, nw, nh, 'Actor Head', '18 outputs', 'gActor', 'dim=18'))
+    lines.append(conn(split_x + lstm_w, actor_lstm_y + lstm_h//2, head_x, actor_lstm_y + lstm_h//2, '#3a7bd5'))
+    lines.append(node(head_x, actor_lstm_y, nw, lstm_h, 'Actor Head', 'Linear(256→18)', 'gActor', '18 dims'))
 
-    # Split into 3 output groups
-    # Continuous (4)
-    out_x = 840
-    out_cont_y = actor_y_base - 70
-    out_bin_y = actor_y_base
-    out_weap_y = actor_y_base + 70
+    # Output groups
+    out_cont_y = actor_lstm_y - 50
+    out_bin_y = actor_lstm_y
+    out_weap_y = actor_lstm_y + 50
 
-    lines.append(conn(ax_head + nw, actor_y_base + nh//4, out_x, out_cont_y + nh//2, '#e67e22'))
-    lines.append(conn(ax_head + nw, actor_y_base + nh//2, out_x, out_bin_y + nh//2, '#e67e22'))
-    lines.append(conn(ax_head + nw, actor_y_base + 3*nh//4, out_x, out_weap_y + nh//2, '#e67e22'))
+    lines.append(conn(head_x + nw, actor_lstm_y + lstm_h//4, out_x, out_cont_y + 20, '#e67e22'))
+    lines.append(conn(head_x + nw, actor_lstm_y + lstm_h//2, out_x, out_bin_y + 20, '#e67e22'))
+    lines.append(conn(head_x + nw, actor_lstm_y + 3*lstm_h//4, out_x, out_weap_y + 20, '#e67e22'))
 
-    lines.append(node(out_x, out_cont_y, 200, nh, 'Continuous (4)', 'yaw, pitch, fwd, side', 'gHead'))
-    lines.append(node(out_x, out_bin_y, 200, nh, 'Binary (3)', 'jump, crouch, attack', 'gHead'))
-    lines.append(node(out_x, out_weap_y, 200, nh, 'Weapon (11)', 'Categorical select', 'gHead'))
+    small_w = 160
+    small_h = 36
+    lines.append(node(out_x, out_cont_y, small_w, small_h, 'Continuous (4)', 'yaw,pitch,fwd,side', 'gHead'))
+    lines.append(node(out_x, out_bin_y, small_w, small_h, 'Binary (3)', 'jump,crouch,attack', 'gHead'))
+    lines.append(node(out_x, out_weap_y, small_w, small_h, 'Weapon (11)', 'Categorical', 'gHead'))
 
     # Log-std annotation
-    log_std_y = out_cont_y - 8
-    lines.append(f'<text x="{out_x + 210}" y="{log_std_y + 20}" fill="#e67e22" '
-                 f'font-family="monospace" font-size="10">+ action_log_std (learned)</text>')
-
-    # Bernoulli annotation
-    lines.append(f'<text x="{out_x + 210}" y="{out_bin_y + 20}" fill="#e67e22" '
-                 f'font-family="monospace" font-size="10">Bernoulli(logits)</text>')
-
-    # Categorical annotation
-    lines.append(f'<text x="{out_x + 210}" y="{out_weap_y + 20}" fill="#e67e22" '
-                 f'font-family="monospace" font-size="10">Categorical(logits)</text>')
-
-    # Divider line
-    div_y = 240
-    lines.append(f'<line x1="20" y1="{div_y}" x2="{SVG_W - 20}" y2="{div_y}" '
-                 f'stroke="#333" stroke-width="1" stroke-dasharray="8,4"/>')
-
-    # ---- CRITIC NETWORK (bottom) ----
-    critic_y_base = 290
-    lines.append('<text x="60" y="275" fill="#27ae60" font-family="Segoe UI,system-ui,sans-serif" '
-                 'font-size="16" font-weight="bold">Critic Network</text>')
-
-    # Input
-    cx_in = 40
-    lines.append(node(cx_in, critic_y_base, nw, nh, 'Input', f'{OBS_DIM} features', 'gInput', f'dim={OBS_DIM}'))
-
-    # Hidden 1
-    cx_h1 = 200
-    lines.append(dense_conn(cx_in + nw, critic_y_base + nh//2, cx_h1, critic_y_base + nh//2, '#7D5BA6'))
-    lines.append(node(cx_h1, critic_y_base, nw, nh, 'Dense+ReLU', '256 units', 'gCritic', 'dim=256'))
-
-    # Hidden 2
-    cx_h2 = 360
-    lines.append(dense_conn(cx_h1 + nw, critic_y_base + nh//2, cx_h2, critic_y_base + nh//2, '#27ae60'))
-    lines.append(node(cx_h2, critic_y_base, nw, nh, 'Dense+ReLU', '256 units', 'gCritic', 'dim=256'))
-
-    # Hidden 3
-    cx_h3 = 520
-    lines.append(dense_conn(cx_h2 + nw, critic_y_base + nh//2, cx_h3, critic_y_base + nh//2, '#27ae60'))
-    lines.append(node(cx_h3, critic_y_base, nw, nh, 'Dense+ReLU', '128 units', 'gCritic', 'dim=128'))
+    lines.append(f'<text x="{out_x + small_w + 8}" y="{out_cont_y + 18}" fill="#e67e22" '
+                 f'font-family="monospace" font-size="9">+ log_std</text>')
 
     # Critic head
-    cx_head = 680
-    lines.append(dense_conn(cx_h3 + nw, critic_y_base + nh//2, cx_head, critic_y_base + nh//2, '#27ae60'))
-    lines.append(node(cx_head, critic_y_base, nw, nh, 'Value Head', '1 scalar', 'gCritic', 'dim=1'))
+    lines.append(conn(split_x + lstm_w, critic_lstm_y + lstm_h//2, head_x, critic_lstm_y + lstm_h//2, '#27ae60'))
+    lines.append(node(head_x, critic_lstm_y, nw, lstm_h, 'Value Head', 'Linear(256→1)', 'gCritic', '1 dim'))
 
-    # Value output
-    vout_x = 840
-    lines.append(conn(cx_head + nw, critic_y_base + nh//2, vout_x, critic_y_base + nh//2, '#27ae60'))
-    lines.append(node(vout_x, critic_y_base, 160, nh, 'State Value', 'V(s)', 'gCritic'))
+    lines.append(conn(head_x + nw, critic_lstm_y + lstm_h//2, out_x, critic_lstm_y + lstm_h//2, '#27ae60'))
+    lines.append(node(out_x, critic_lstm_y, small_w, small_h, 'State Value', 'V(s)', 'gCritic'))
 
-    # ---- PARAMETER COUNTS ----
-    info_y = 400
+    # ============================================================
+    # SECTION 6: Labels and annotations
+    # ============================================================
+    # "Shared" bracket for encoder + fusion
+    bracket_x = enc_x - 5
+    bracket_top = g0_y - 15
+    bracket_bot = g4_y + nh + 15
+    lines.append(f'<rect x="{bracket_x - 3}" y="{bracket_top}" width="{fusion_x + 130 - bracket_x + 8}" '
+                 f'height="{bracket_bot - bracket_top}" rx="8" fill="none" '
+                 f'stroke="#444" stroke-width="1" stroke-dasharray="4,3"/>')
+    lines.append(f'<text x="{(bracket_x + fusion_x + 130) / 2}" y="{bracket_bot + 14}" '
+                 f'text-anchor="middle" fill="#666" font-family="Segoe UI,system-ui,sans-serif" '
+                 f'font-size="11" font-style="italic">Shared Encoder (actor + critic gradients)</text>')
 
-    actor_trunk_params = sum(p.numel() for p in model.actor_trunk.parameters())
+    # "Separate" label
+    sep_x = split_x + lstm_w // 2
+    sep_y = max(out_weap_y + small_h + 20, critic_lstm_y + lstm_h + 20)
+    lines.append(f'<text x="{sep_x + 50}" y="{sep_y}" '
+                 f'text-anchor="middle" fill="#666" font-family="Segoe UI,system-ui,sans-serif" '
+                 f'font-size="11" font-style="italic">Separate heads</text>')
+
+    # ============================================================
+    # SECTION 7: Parameter counts
+    # ============================================================
+    info_y = 520
+
+    # Compute param counts per component
+    fourier_params = 0  # computed, not learned
+    self_enc_params = sum(p.numel() for p in model.self_encoder.parameters())
+    inv_enc_params = sum(p.numel() for p in model.inv_encoder.parameters())
+    enemy_enc_params = sum(p.numel() for p in model.enemy_encoder.parameters())
+    entity_attn_params = sum(p.numel() for p in model.entity_attn.parameters())
+    fusion_params = sum(p.numel() for p in model.fusion.parameters())
+    actor_lstm_params = sum(p.numel() for p in model.actor_lstm.parameters())
+    critic_lstm_params = sum(p.numel() for p in model.critic_lstm.parameters())
     actor_head_params = sum(p.numel() for p in model.actor.parameters())
-    critic_trunk_params = sum(p.numel() for p in model.critic_trunk.parameters())
     critic_head_params = sum(p.numel() for p in model.critic.parameters())
     log_std_params = model.action_log_std.numel()
 
     param_info = [
-        ('Actor Trunk', actor_trunk_params, '#3a7bd5'),
+        ('Fourier Enc', fourier_params, '#e74c3c'),
+        ('Self Enc (38→96)', self_enc_params, '#3a7bd5'),
+        ('Inv Enc (27→64)', inv_enc_params, '#3a7bd5'),
+        ('Enemy Enc (7→64)', enemy_enc_params, '#3a7bd5'),
+        ('Entity Attn (5→64)', entity_attn_params, '#f39c12'),
+        ('Fusion (291→256→256)', fusion_params, '#888'),
+        ('Actor LSTM', actor_lstm_params, '#3a7bd5'),
+        ('Critic LSTM', critic_lstm_params, '#27ae60'),
         ('Actor Head', actor_head_params, '#3a7bd5'),
-        ('Critic Trunk', critic_trunk_params, '#27ae60'),
         ('Critic Head', critic_head_params, '#27ae60'),
         ('Log Std', log_std_params, '#e67e22'),
         ('Total', total_params, '#fff'),
     ]
 
-    lines.append(f'<text x="60" y="{info_y}" fill="#888" font-family="Segoe UI,system-ui,sans-serif" '
+    lines.append(f'<text x="40" y="{info_y}" fill="#888" font-family="Segoe UI,system-ui,sans-serif" '
                  f'font-size="13" font-weight="bold">Parameter Counts</text>')
 
+    cols = 3
     for i, (plabel, pcount, pcolor) in enumerate(param_info):
-        px = 60 + (i % 3) * 340
-        py = info_y + 22 + (i // 3) * 20
+        px = 40 + (i % cols) * 380
+        py = info_y + 20 + (i // cols) * 20
         lines.append(f'<text x="{px}" y="{py}" fill="{pcolor}" '
-                     f'font-family="monospace" font-size="12">'
+                     f'font-family="monospace" font-size="11">'
                      f'{plabel}: {pcount:,}</text>')
 
-    # ---- LAYER DIMENSION FLOW ----
-    flow_y = 480
-    lines.append(f'<text x="60" y="{flow_y}" fill="#888" font-family="Segoe UI,system-ui,sans-serif" '
-                 f'font-size="13" font-weight="bold">Data Flow (Actor)</text>')
+    # ============================================================
+    # SECTION 8: Data flow summary
+    # ============================================================
+    flow_y = info_y + 20 + (len(param_info) // cols + 1) * 20 + 15
+
+    lines.append(f'<text x="40" y="{flow_y}" fill="#888" font-family="Segoe UI,system-ui,sans-serif" '
+                 f'font-size="13" font-weight="bold">Data Flow</text>')
 
     flow_dims = [
-        (f'{OBS_DIM}', 'obs'),
-        ('256', 'h1'),
-        ('256', 'h2'),
-        ('128', 'h3'),
-        ('4+3+11=18', 'head'),
+        ('91', 'obs'),
+        ('slice', '5 groups'),
+        ('96+64+64+64+3', 'encoded'),
+        ('291→256', 'fusion'),
+        ('256→256', 'LSTM'),
+        ('4+3+11=18', 'actions'),
     ]
 
     for i, (dim, lbl) in enumerate(flow_dims):
-        fx = 60 + i * 200
+        fx = 40 + i * 180
         fy = flow_y + 15
-        # Arrow
         if i > 0:
-            lines.append(f'<text x="{fx - 30}" y="{fy + 14}" fill="#555" '
-                         f'font-family="monospace" font-size="16">&rarr;</text>')
-        # Dim box
-        bw = len(dim) * 10 + 20
-        lines.append(f'<rect x="{fx}" y="{fy}" width="{bw}" height="24" rx="4" '
+            lines.append(f'<text x="{fx - 18}" y="{fy + 14}" fill="#555" '
+                         f'font-family="monospace" font-size="14">&rarr;</text>')
+        bw = len(dim) * 8 + 20
+        lines.append(f'<rect x="{fx}" y="{fy}" width="{bw}" height="22" rx="4" '
                      f'fill="#1a1a2a" stroke="#444" stroke-width="1"/>')
-        lines.append(f'<text x="{fx + bw/2}" y="{fy + 16}" text-anchor="middle" fill="#ddd" '
-                     f'font-family="monospace" font-size="12">{dim}</text>')
-        lines.append(f'<text x="{fx + bw/2}" y="{fy + 38}" text-anchor="middle" fill="#666" '
-                     f'font-family="monospace" font-size="10">{lbl}</text>')
+        lines.append(f'<text x="{fx + bw/2}" y="{fy + 15}" text-anchor="middle" fill="#ddd" '
+                     f'font-family="monospace" font-size="11">{dim}</text>')
+        lines.append(f'<text x="{fx + bw/2}" y="{fy + 34}" text-anchor="middle" fill="#666" '
+                     f'font-family="monospace" font-size="9">{lbl}</text>')
 
-    # Initialization note
-    lines.append(f'<text x="60" y="{SVG_H - 20}" fill="#555" '
-                 f'font-family="Segoe UI,system-ui,sans-serif" font-size="11">'
-                 f'Initialization: orthogonal (std=sqrt(2) trunk, std=0.01 actor head, std=1.0 critic head)</text>')
+    # Init note
+    lines.append(f'<text x="40" y="{SVG_H - 15}" fill="#555" '
+                 f'font-family="Segoe UI,system-ui,sans-serif" font-size="10">'
+                 f'Init: orthogonal (std=sqrt(2) encoders, std=0.01 actor head, std=1.0 critic head) '
+                 f'| Fourier: fixed sin/cos L=4 bands | Entity attention: learned query vector</text>')
 
     lines.append('</svg>')
     return '\n'.join(lines)
@@ -460,7 +544,7 @@ html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>KaaN Neural Network Visualizer</title>
+<title>KaaN V2.5 Neural Network Visualizer</title>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{
@@ -468,7 +552,7 @@ body {{
   background: #0a0a0f;
   color: #e0e0e0;
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1300px;
   margin: 0 auto;
 }}
 h1 {{ color: #ff6b35; margin-bottom: 5px; }}
@@ -621,15 +705,15 @@ tr:hover {{
 </head>
 <body>
 
-<h1>KaaN -- Neural Network Visualizer</h1>
-<p class="subtitle">Model: {html_mod.escape(ckpt_name)} | Generated: {now} | OBS_DIM: {OBS_DIM}</p>
+<h1>KaaN V2.5 -- Neural Network Visualizer</h1>
+<p class="subtitle">Model: {html_mod.escape(ckpt_name)} | Generated: {now} | OBS_DIM: {OBS_DIM} | Grouped Encoder + Entity Attention + Fourier Position</p>
 
 <div class="stat-bar">
   <div class="stat-item"><div class="val">{total_params:,}</div><div class="lbl">Total Parameters</div></div>
   <div class="stat-item"><div class="val">{OBS_DIM}</div><div class="lbl">Input Features</div></div>
   <div class="stat-item"><div class="val">18</div><div class="lbl">Action Outputs</div></div>
-  <div class="stat-item"><div class="val">3</div><div class="lbl">Hidden Layers</div></div>
-  <div class="stat-item"><div class="val">2</div><div class="lbl">Networks (A/C)</div></div>
+  <div class="stat-item"><div class="val">5</div><div class="lbl">Obs Groups</div></div>
+  <div class="stat-item"><div class="val">2</div><div class="lbl">LSTMs (A/C)</div></div>
 </div>
 
 <!-- Architecture Diagram -->
@@ -761,8 +845,6 @@ with open(OUTPUT, 'w') as f:
 
 print(f"Generated: {OUTPUT}")
 print(f"Total parameters: {total_params:,}")
-print(f"Actor trunk: {sum(p.numel() for p in model.actor_trunk.parameters()):,}")
-print(f"Critic trunk: {sum(p.numel() for p in model.critic_trunk.parameters()):,}")
 print(f"Log std values: {log_std}")
 print(f"Binary biases: jump={actor_bias[4]:.2f} crouch={actor_bias[5]:.2f} attack={actor_bias[6]:.2f}")
 print(f"Binary probs:  jump={binary_probs[0]:.4f} crouch={binary_probs[1]:.6f} attack={binary_probs[2]:.4f}")

@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """
-train.py -- PPO training loop for Q2AI.
+train.py -- PPO training loop for Q2AI with LSTM memory.
 
 Usage:
     python train.py                              # single instance
     python train.py --num-envs 4                 # 4 parallel instances
     python train.py --resume checkpoints/model_100.pt
+    python train.py --num-envs 200 --seq-len 32  # LSTM with 32-step chunks
 
 Connects to running q2ai headless clients via shared memory.
 With --num-envs N, collects rollouts from N environments in parallel
 for N× data collection throughput.
+
+LSTM hidden states are maintained per-env during rollout and saved at
+chunk boundaries for truncated BPTT during PPO updates.
 """
 
 import argparse
@@ -64,80 +68,185 @@ class RunningNormalizer:
             -self.clip, self.clip
         ).astype(np.float32)
 
+    def state_dict(self):
+        return {"mean": self.mean.copy(), "var": self.var.copy(), "count": self.count}
+
+    def load_state_dict(self, d):
+        self.mean = d["mean"]
+        self.var = d["var"]
+        self.count = d["count"]
+
 
 class RolloutBuffer:
-    """Fixed-size buffer for storing one rollout of PPO transitions."""
+    """Per-env rollout buffer for LSTM-based PPO.
 
-    def __init__(self, rollout_len, obs_dim=OBS_DIM):
-        self.rollout_len = rollout_len
-        self.obs = np.zeros((rollout_len, obs_dim), dtype=np.float32)
-        self.cont_actions = np.zeros((rollout_len, 4), dtype=np.float32)
-        self.jump_actions = np.zeros(rollout_len, dtype=np.float32)
-        self.crouch_actions = np.zeros(rollout_len, dtype=np.float32)
-        self.attack_actions = np.zeros(rollout_len, dtype=np.float32)
-        self.weapon_actions = np.zeros(rollout_len, dtype=np.int64)
-        self.log_probs = np.zeros(rollout_len, dtype=np.float32)
-        self.rewards = np.zeros(rollout_len, dtype=np.float32)
-        self.values = np.zeros(rollout_len, dtype=np.float32)
-        self.dones = np.zeros(rollout_len, dtype=np.float32)
-        self.returns = np.zeros(rollout_len, dtype=np.float32)
-        self.advantages = np.zeros(rollout_len, dtype=np.float32)
-        self.ptr = 0
+    Stores data as (num_envs, steps_per_env, ...) so GAE is computed
+    correctly per environment (no cross-env contamination).
+    """
 
-    def add(self, obs, action_dict, log_prob, reward, value, done):
-        """Store one transition."""
-        i = self.ptr
-        self.obs[i] = obs
-        # Store raw (unclipped) model outputs so PPO log_probs match collection
-        self.cont_actions[i] = action_dict["_raw_continuous"]
-        self.jump_actions[i] = action_dict["jump"]
-        self.crouch_actions[i] = action_dict["crouch"]
-        self.attack_actions[i] = action_dict["attack"]
-        self.weapon_actions[i] = action_dict["weapon"]
-        self.log_probs[i] = log_prob
-        self.rewards[i] = reward
-        self.values[i] = value
-        self.dones[i] = float(done)
-        self.ptr += 1
+    def __init__(self, num_envs, steps_per_env, seq_len, obs_dim=OBS_DIM, hidden_size=256):
+        self.num_envs = num_envs
+        self.steps_per_env = steps_per_env
+        self.seq_len = seq_len
+        self.hidden_size = hidden_size
+        self.num_chunks_per_env = steps_per_env // seq_len
 
-    def compute_returns(self, last_value, gamma=0.99, lam=0.95):
-        """Compute GAE advantages and returns."""
-        last_gae = 0.0
-        for t in reversed(range(self.rollout_len)):
-            if t == self.rollout_len - 1:
-                next_value = last_value
-            else:
-                next_value = self.values[t + 1]
-            non_terminal = 1.0 - self.dones[t]
-            delta = self.rewards[t] + gamma * next_value * non_terminal - self.values[t]
-            self.advantages[t] = last_gae = delta + gamma * lam * non_terminal * last_gae
-        self.returns = self.advantages + self.values
+        # Per-env, per-step storage
+        self.obs = np.zeros((num_envs, steps_per_env, obs_dim), dtype=np.float32)
+        self.cont_actions = np.zeros((num_envs, steps_per_env, 4), dtype=np.float32)
+        self.jump_actions = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.crouch_actions = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.attack_actions = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.weapon_actions = np.zeros((num_envs, steps_per_env), dtype=np.int64)
+        self.log_probs = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.rewards = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.values = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.dones = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.returns = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+        self.advantages = np.zeros((num_envs, steps_per_env), dtype=np.float32)
 
-    def get_batches(self, batch_size, device="cpu"):
-        """Yield random mini-batches as torch tensors."""
-        indices = np.random.permutation(self.rollout_len)
-        for start in range(0, self.rollout_len, batch_size):
-            end = start + batch_size
-            idx = indices[start:end]
+        # Hidden states at chunk boundaries (for LSTM replay during PPO)
+        # Shape: (num_envs, num_chunks, 1, 1, hidden_size) for each of h_a, c_a, h_c, c_c
+        nc = self.num_chunks_per_env
+        self.chunk_h_actor = np.zeros((num_envs, nc, hidden_size), dtype=np.float32)
+        self.chunk_c_actor = np.zeros((num_envs, nc, hidden_size), dtype=np.float32)
+        self.chunk_h_critic = np.zeros((num_envs, nc, hidden_size), dtype=np.float32)
+        self.chunk_c_critic = np.zeros((num_envs, nc, hidden_size), dtype=np.float32)
+
+        self.ptrs = np.zeros(num_envs, dtype=np.int64)  # per-env step pointer
+
+    def add(self, env_id, obs, action_dict, log_prob, reward, value, done):
+        """Store one transition for a specific env."""
+        t = self.ptrs[env_id]
+        self.obs[env_id, t] = obs
+        self.cont_actions[env_id, t] = action_dict["_raw_continuous"]
+        self.jump_actions[env_id, t] = action_dict["jump"]
+        self.crouch_actions[env_id, t] = action_dict["crouch"]
+        self.attack_actions[env_id, t] = action_dict["attack"]
+        self.weapon_actions[env_id, t] = action_dict["weapon"]
+        self.log_probs[env_id, t] = log_prob
+        self.rewards[env_id, t] = reward
+        self.values[env_id, t] = value
+        self.dones[env_id, t] = float(done)
+        self.ptrs[env_id] = t + 1
+
+    def save_hidden(self, env_id, chunk_idx, hidden_state):
+        """Save LSTM hidden state at a chunk boundary.
+
+        Args:
+            hidden_state: (h_a, c_a, h_c, c_c) each (1, 1, hidden_size) tensor
+        """
+        h_a, c_a, h_c, c_c = hidden_state
+        self.chunk_h_actor[env_id, chunk_idx] = h_a.squeeze().cpu().numpy()
+        self.chunk_c_actor[env_id, chunk_idx] = c_a.squeeze().cpu().numpy()
+        self.chunk_h_critic[env_id, chunk_idx] = h_c.squeeze().cpu().numpy()
+        self.chunk_c_critic[env_id, chunk_idx] = c_c.squeeze().cpu().numpy()
+
+    def compute_returns(self, last_values, gamma=0.99, lam=0.95):
+        """Compute GAE advantages and returns per-env.
+
+        Args:
+            last_values: (num_envs,) array — bootstrap value for each env
+        """
+        for e in range(self.num_envs):
+            last_gae = 0.0
+            for t in reversed(range(self.steps_per_env)):
+                if t == self.steps_per_env - 1:
+                    next_value = last_values[e]
+                else:
+                    next_value = self.values[e, t + 1]
+                non_terminal = 1.0 - self.dones[e, t]
+                delta = self.rewards[e, t] + gamma * next_value * non_terminal - self.values[e, t]
+                self.advantages[e, t] = last_gae = delta + gamma * lam * non_terminal * last_gae
+            self.returns[e] = self.advantages[e] + self.values[e]
+
+    def get_sequence_batches(self, batch_chunks, device="cpu"):
+        """Yield mini-batches of sequence chunks for LSTM PPO.
+
+        Each env's steps are split into (steps_per_env / seq_len) chunks.
+        Chunks are shuffled and yielded in mini-batches of batch_chunks.
+
+        Yields dicts with:
+            obs: (batch_chunks, seq_len, obs_dim)
+            continuous, jump, crouch, attack: (batch_chunks, seq_len, ...)
+            weapon: (batch_chunks, seq_len)
+            log_probs, returns, advantages: (batch_chunks, seq_len)
+            h_actor, c_actor, h_critic, c_critic: (1, batch_chunks, hidden_size)
+        """
+        S = self.seq_len
+        nc = self.num_chunks_per_env
+
+        # Build list of (env_id, chunk_idx) pairs
+        chunk_indices = []
+        for e in range(self.num_envs):
+            for c in range(nc):
+                chunk_indices.append((e, c))
+
+        # Shuffle
+        perm = np.random.permutation(len(chunk_indices))
+
+        for start in range(0, len(chunk_indices), batch_chunks):
+            end = min(start + batch_chunks, len(chunk_indices))
+            batch_idx = perm[start:end]
+            B = len(batch_idx)
+
+            # Gather chunks
+            obs_batch = np.zeros((B, S, self.obs.shape[2]), dtype=np.float32)
+            cont_batch = np.zeros((B, S, 4), dtype=np.float32)
+            jump_batch = np.zeros((B, S), dtype=np.float32)
+            crouch_batch = np.zeros((B, S), dtype=np.float32)
+            attack_batch = np.zeros((B, S), dtype=np.float32)
+            weapon_batch = np.zeros((B, S), dtype=np.int64)
+            logp_batch = np.zeros((B, S), dtype=np.float32)
+            ret_batch = np.zeros((B, S), dtype=np.float32)
+            adv_batch = np.zeros((B, S), dtype=np.float32)
+            h_a_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
+            c_a_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
+            h_c_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
+            c_c_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
+
+            for i, idx in enumerate(batch_idx):
+                e, c = chunk_indices[idx]
+                t0 = c * S
+                t1 = t0 + S
+                obs_batch[i] = self.obs[e, t0:t1]
+                cont_batch[i] = self.cont_actions[e, t0:t1]
+                jump_batch[i] = self.jump_actions[e, t0:t1]
+                crouch_batch[i] = self.crouch_actions[e, t0:t1]
+                attack_batch[i] = self.attack_actions[e, t0:t1]
+                weapon_batch[i] = self.weapon_actions[e, t0:t1]
+                logp_batch[i] = self.log_probs[e, t0:t1]
+                ret_batch[i] = self.returns[e, t0:t1]
+                adv_batch[i] = self.advantages[e, t0:t1]
+                h_a_batch[i] = self.chunk_h_actor[e, c]
+                c_a_batch[i] = self.chunk_c_actor[e, c]
+                h_c_batch[i] = self.chunk_h_critic[e, c]
+                c_c_batch[i] = self.chunk_c_critic[e, c]
+
             yield {
-                "obs": torch.FloatTensor(self.obs[idx]).to(device),
-                "continuous": torch.FloatTensor(self.cont_actions[idx]).to(device),
-                "jump": torch.FloatTensor(self.jump_actions[idx]).to(device),
-                "crouch": torch.FloatTensor(self.crouch_actions[idx]).to(device),
-                "attack": torch.FloatTensor(self.attack_actions[idx]).to(device),
-                "weapon": torch.LongTensor(self.weapon_actions[idx]).to(device),
-                "log_probs": torch.FloatTensor(self.log_probs[idx]).to(device),
-                "returns": torch.FloatTensor(self.returns[idx]).to(device),
-                "advantages": torch.FloatTensor(self.advantages[idx]).to(device),
+                "obs": torch.FloatTensor(obs_batch).to(device),
+                "continuous": torch.FloatTensor(cont_batch).to(device),
+                "jump": torch.FloatTensor(jump_batch).to(device),
+                "crouch": torch.FloatTensor(crouch_batch).to(device),
+                "attack": torch.FloatTensor(attack_batch).to(device),
+                "weapon": torch.LongTensor(weapon_batch).to(device),
+                "log_probs": torch.FloatTensor(logp_batch).to(device),
+                "returns": torch.FloatTensor(ret_batch).to(device),
+                "advantages": torch.FloatTensor(adv_batch).to(device),
+                # Hidden states: (1, B, hidden) for LSTM
+                "h_actor": torch.FloatTensor(h_a_batch).unsqueeze(0).to(device),
+                "c_actor": torch.FloatTensor(c_a_batch).unsqueeze(0).to(device),
+                "h_critic": torch.FloatTensor(h_c_batch).unsqueeze(0).to(device),
+                "c_critic": torch.FloatTensor(c_c_batch).unsqueeze(0).to(device),
             }
 
     def reset(self):
-        self.ptr = 0
+        self.ptrs[:] = 0
 
 
-def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
+def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
                entropy_coef, value_coef, max_grad_norm, target_kl, device="cpu"):
-    """Run PPO policy gradient updates on the rollout buffer."""
+    """Run PPO updates on sequence chunks with LSTM unrolling."""
     metrics = {"policy_loss": 0, "value_loss": 0, "entropy": 0,
                "clip_fraction": 0, "approx_kl": 0, "n_updates": 0}
 
@@ -145,28 +254,37 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
     for epoch in range(epochs):
         if early_stop:
             break
-        for batch in buffer.get_batches(batch_size, device=device):
+        for batch in buffer.get_sequence_batches(batch_chunks, device=device):
+            # batch["obs"] is (B, seq_len, obs_dim) — full sequence chunk
             action = {
-                "continuous": batch["continuous"],
-                "jump": batch["jump"],
+                "continuous": batch["continuous"],   # (B, seq_len, 4)
+                "jump": batch["jump"],               # (B, seq_len)
                 "crouch": batch["crouch"],
                 "attack": batch["attack"],
                 "weapon": batch["weapon"],
             }
 
-            result = model.get_action_and_value(batch["obs"], action=action)
-            new_log_prob = result["log_prob"]
-            entropy = result["entropy"]
-            new_value = result["value"]
+            # Forward through LSTM with saved initial hidden states
+            hidden_actor = (batch["h_actor"], batch["c_actor"])
+            hidden_critic = (batch["h_critic"], batch["c_critic"])
 
-            advantages = batch["advantages"]
+            result = model.get_action_and_value(
+                batch["obs"], hidden_actor, hidden_critic, action=action
+            )
+
+            # result tensors are (B, seq_len) — flatten for loss computation
+            new_log_prob = result["log_prob"].reshape(-1)
+            entropy = result["entropy"].reshape(-1)
+            new_value = result["value"].reshape(-1)
+
+            old_log_prob = batch["log_probs"].reshape(-1)
+            returns = batch["returns"].reshape(-1)
+            advantages = batch["advantages"].reshape(-1)
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-            log_ratio = new_log_prob - batch["log_probs"]
+            log_ratio = new_log_prob - old_log_prob
             ratio = log_ratio.exp()
 
-            # KL early stopping: if policy drifted too far, stop updating
-            # (always do at least 1 gradient update)
             with torch.no_grad():
                 approx_kl = ((ratio - 1) - log_ratio).mean().item()
                 if metrics["n_updates"] == 0:
@@ -180,7 +298,7 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
             pg_loss2 = -advantages * torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
             policy_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-            value_loss = 0.5 * (new_value - batch["returns"]).pow(2).mean()
+            value_loss = 0.5 * (new_value - returns).pow(2).mean()
             entropy_loss = entropy.mean()
             loss = policy_loss + value_coef * value_loss - entropy_coef * entropy_loss
 
@@ -208,13 +326,24 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_size,
 
 
 def train(args):
-    """Main training loop with multi-instance support."""
+    """Main training loop with LSTM memory and multi-instance support."""
     num_envs = args.num_envs
-    print(f"Q2AI Training — KaaN[V1.2]")
-    print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {args.rollout_len}, "
-          f"Batch: {args.batch_size}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
+    seq_len = args.seq_len
+    steps_per_env = args.rollout_len
 
-    # Device selection
+    # Ensure rollout_len is divisible by seq_len
+    assert steps_per_env % seq_len == 0, \
+        f"rollout_len ({steps_per_env}) must be divisible by seq_len ({seq_len})"
+
+    num_chunks_per_env = steps_per_env // seq_len
+    total_chunks = num_envs * num_chunks_per_env
+
+    print(f"Q2AI Training — KaaN[V2.5-GroupedEncoder]")
+    print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {steps_per_env}, "
+          f"Seq: {seq_len}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
+    print(f"Chunks per env: {num_chunks_per_env}, Total chunks: {total_chunks}, "
+          f"Batch chunks: {args.batch_chunks}")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
@@ -231,37 +360,83 @@ def train(args):
 
     if args.resume:
         print(f"Resuming from {args.resume}")
-        state_dict = torch.load(args.resume, weights_only=True, map_location=device)
-        # Handle old shared-trunk model: copy trunk weights to both actor_trunk and critic_trunk
-        if "trunk.0.weight" in state_dict and "actor_trunk.0.weight" not in state_dict:
-            print("  Converting shared-trunk model to separate networks...")
+        ckpt = torch.load(args.resume, weights_only=False, map_location=device)
+
+        # Support both old (state_dict only) and new (dict with normalizer) formats
+        if isinstance(ckpt, dict) and "model" in ckpt:
+            state_dict = ckpt["model"]
+        else:
+            state_dict = ckpt
+
+        # Handle old checkpoint formats → V2.5 grouped encoder
+
+        if "trunk.0.weight" in state_dict:
+            # V1.x shared-trunk MLP → V2.5: skip encoder, keep heads
+            print("  Converting V1.x shared-trunk model to V2.5...")
             new_sd = {}
             for k, v in state_dict.items():
                 if k.startswith("trunk."):
-                    suffix = k[len("trunk."):]
-                    new_sd[f"actor_trunk.{suffix}"] = v
-                    new_sd[f"critic_trunk.{suffix}"] = v.clone()
+                    print(f"    Skipping {k} (old trunk → grouped encoders init fresh)")
+                elif k == "actor.weight" and v.shape[1] != 256:
+                    print(f"    Skipping {k} (shape mismatch: {v.shape})")
+                elif k == "critic.weight" and v.shape[1] != 256:
+                    print(f"    Skipping {k} (shape mismatch: {v.shape})")
                 else:
                     new_sd[k] = v
             state_dict = new_sd
+
+        elif "actor_trunk.0.weight" in state_dict:
+            # V1.x separate-trunk MLP → V2.5: skip encoder, keep heads
+            print("  Converting V1.x separate-trunk MLP to V2.5...")
+            new_sd = {}
+            for k, v in state_dict.items():
+                if k.startswith("actor_trunk.") or k.startswith("critic_trunk."):
+                    print(f"    Skipping {k} (old trunk → grouped encoders init fresh)")
+                elif k == "actor.weight" and v.shape[1] != 256:
+                    print(f"    Skipping {k} (shape mismatch: {v.shape})")
+                elif k == "critic.weight" and v.shape[1] != 256:
+                    print(f"    Skipping {k} (shape mismatch: {v.shape})")
+                else:
+                    new_sd[k] = v
+            state_dict = new_sd
+
+        elif "actor_encoder.0.weight" in state_dict and "self_encoder.0.weight" not in state_dict:
+            # V2.0 LSTM (actor_encoder/critic_encoder 91→256) → V2.5 grouped encoders
+            # LSTM weights transfer directly (same 256→256)
+            # Actor/critic heads transfer directly (same 256→18 / 256→1)
+            # Old encoder weights can't map to new group encoders (different input dims)
+            print("  Converting V2.0 LSTM checkpoint to V2.5 grouped encoder...")
+            new_sd = {}
+            for k, v in state_dict.items():
+                if k.startswith("actor_encoder.") or k.startswith("critic_encoder."):
+                    print(f"    Skipping {k} (old 91→256 encoder → grouped encoders init fresh)")
+                else:
+                    new_sd[k] = v
+            state_dict = new_sd
+
         model.load_state_dict(state_dict, strict=False)
+
+        # Load normalizer if present
+        if isinstance(ckpt, dict) and "normalizer" in ckpt:
+            print("  Loaded observation normalizer state")
+
         with torch.no_grad():
-            model.actor.bias[4] = min(model.actor.bias[4].item(), -5.0)   # jump: conservative
-            model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)  # crouch: disabled
-            model.actor.bias[6] = min(model.actor.bias[6].item(), -5.0)   # attack: ~1% base rate
+            model.actor.bias[4] = min(model.actor.bias[4].item(), -5.0)
+            model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)
+            model.actor.bias[6] = min(model.actor.bias[6].item(), -5.0)
             model.action_log_std.data.clamp_(-2.0, 0.5)
             print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
             print(f"  Log_std: {model.action_log_std.data.tolist()}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
 
-    # Observation normalizer (running mean/std)
+    # Observation normalizer
     obs_normalizer = RunningNormalizer(OBS_DIM)
+    if args.resume and isinstance(ckpt, dict) and "normalizer" in ckpt:
+        obs_normalizer.load_state_dict(ckpt["normalizer"])
 
-    # Total rollout size = rollout_len * num_envs (more data per iteration)
-    steps_per_env = args.rollout_len
-    total_rollout_size = steps_per_env * num_envs
-    buffer = RolloutBuffer(total_rollout_size)
+    # Buffer: per-env storage with sequence chunk support
+    buffer = RolloutBuffer(num_envs, steps_per_env, seq_len)
 
     # Logging
     os.makedirs(args.checkpoint_dir, exist_ok=True)
@@ -285,23 +460,27 @@ def train(args):
     ep_reward = [0.0] * num_envs
     ep_frags = [0] * num_envs
     ep_length = [0] * num_envs
-    # Track frags/deaths directly (continuous episodes don't have episode boundaries)
     prev_frags = [0] * num_envs
     prev_health = [100] * num_envs
     rollout_frags = 0
     rollout_deaths = 0
 
     start_time = time.time()
-
-    # Thread pool for parallel semaphore waits (I/O-bound, not CPU-bound)
     executor = ThreadPoolExecutor(max_workers=num_envs)
 
-    # Reset all envs (parallel)
+    # Initialize LSTM hidden states for all envs (on CPU — moved to GPU in act_batch)
+    hidden_states = [model.init_hidden(1) for _ in range(num_envs)]
+    # Move to CPU for storage
+    hidden_states = [
+        tuple(h.cpu() for h in hs) for hs in hidden_states
+    ]
+
+    # Reset all envs
     print(f"Resetting {num_envs} environment(s)...")
     raw_obs_list = list(executor.map(lambda env: env.reset()[0], envs))
     obs_normalizer.update(raw_obs_list)
     obs_list = [obs_normalizer.normalize(o) for o in raw_obs_list]
-    print(f"Ready! Starting training loop ({num_envs}x parallel).\n")
+    print(f"Ready! Starting training loop ({num_envs}x parallel, LSTM seq={seq_len}).\n")
 
     for iteration in range(1, args.num_rollouts + 1):
         buffer.reset()
@@ -309,11 +488,11 @@ def train(args):
         rollout_frags = 0
         rollout_deaths = 0
 
-        # Drain stale semaphore posts from PPO update gap (C clients kept posting)
+        # Drain stale semaphore posts
         for env in envs:
             env._drain_semaphore(env._sem_obs)
 
-        # Send one round of no-ops and wait for fresh obs to resync
+        # Resync with fresh obs
         noop = {"yaw_delta": 0, "pitch_delta": 0, "forwardmove": 0,
                 "sidemove": 0, "jump": 0, "crouch": 0, "attack": 0, "weapon": 0}
         for env in envs:
@@ -324,19 +503,26 @@ def train(args):
         for e in range(num_envs):
             obs_list[e] = obs_normalizer.normalize(raw_obs_batch[e])
 
-        # Collect rollout — batch inference + threaded parallel I/O
+        # Collect rollout
         for t in range(steps_per_env):
-            # 1. Batch inference: one GPU forward pass for all envs
-            actions, log_probs, values = model.act_batch(obs_list)
+            # Save hidden states at chunk boundaries (before forward pass)
+            if t % seq_len == 0:
+                chunk_idx = t // seq_len
+                for e in range(num_envs):
+                    buffer.save_hidden(e, chunk_idx, hidden_states[e])
 
-            # 2. Send all actions (non-blocking)
+            # Batch inference with LSTM hidden states
+            actions, log_probs, values, new_hidden_states = model.act_batch(obs_list, hidden_states)
+            hidden_states = new_hidden_states
+
+            # Send all actions
             for e in range(num_envs):
                 envs[e].send_action(actions[e])
 
-            # 3. Receive all observations in parallel (threaded semaphore waits)
+            # Receive observations in parallel
             results = list(executor.map(lambda env: env.recv_obs(), envs))
 
-            # 4. Process results and reset terminated envs
+            # Process results
             reset_envs = []
             raw_obs_batch = [results[e][0] for e in range(num_envs)]
             obs_normalizer.update(raw_obs_batch)
@@ -345,12 +531,12 @@ def train(args):
                 rollout_rewards.append(reward)
                 scaled_reward = reward * REWARD_SCALE
 
-                buffer.add(obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated)
+                buffer.add(e, obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated)
                 total_timesteps += 1
-                ep_reward[e] += reward  # track unscaled for logging
+                ep_reward[e] += reward
                 ep_length[e] += 1
                 ep_frags[e] = info.get("frags", ep_frags[e])
-                # Track combat stats directly from info
+
                 cur_frags = info.get("frags", 0)
                 cur_health = info.get("health", 100)
                 if cur_frags > prev_frags[e]:
@@ -371,27 +557,34 @@ def train(args):
                     ep_frags[e] = 0
                     ep_length[e] = 0
                     reset_envs.append(e)
+                    # Reset LSTM hidden state for terminated env
+                    h = model.init_hidden(1)
+                    hidden_states[e] = tuple(x.cpu() for x in h)
 
-            # 5. Reset terminated envs in parallel
+            # Reset terminated envs
             if reset_envs:
                 reset_results = list(executor.map(lambda e: (e, envs[e].reset()), reset_envs))
                 for e, (obs_raw, _info) in reset_results:
                     obs_list[e] = obs_normalizer.normalize(obs_raw)
 
-        # Bootstrap value (obs_list is already normalized)
+        # Bootstrap ALL envs (fix: old code only bootstrapped env 0)
         with torch.no_grad():
-            last_value = model.get_value(
-                torch.FloatTensor(obs_list[0]).unsqueeze(0).to(device)
-            ).item()
+            last_values = np.zeros(num_envs, dtype=np.float32)
+            for e in range(num_envs):
+                obs_t = torch.FloatTensor(obs_list[e]).unsqueeze(0).to(device)
+                h_c = hidden_states[e][2].to(device)
+                c_c = hidden_states[e][3].to(device)
+                val, _ = model.get_value(obs_t, (h_c, c_c))
+                last_values[e] = val.item()
 
-        buffer.compute_returns(last_value, gamma=args.gamma, lam=args.lam)
+        buffer.compute_returns(last_values, gamma=args.gamma, lam=args.lam)
 
-        # PPO update
+        # PPO update with sequence chunks
         metrics = ppo_update(
             model, optimizer, buffer,
             clip_eps=args.clip_eps,
             epochs=args.epochs,
-            batch_size=args.batch_size,
+            batch_chunks=args.batch_chunks,
             entropy_coef=args.entropy_coef,
             value_coef=args.value_coef,
             max_grad_norm=args.max_grad_norm,
@@ -426,15 +619,25 @@ def train(args):
             ])
             log_file.flush()
 
-        # Save checkpoint
+        # Save checkpoint (model + normalizer)
         if iteration % args.save_interval == 0:
             path = os.path.join(args.checkpoint_dir, f"model_{iteration}.pt")
-            torch.save(model.state_dict(), path)
+            torch.save({
+                "model": model.state_dict(),
+                "normalizer": obs_normalizer.state_dict(),
+                "iteration": iteration,
+                "timesteps": total_timesteps,
+            }, path)
             print(f"  Checkpoint saved: {path}")
 
     # Final save
     final_path = os.path.join(args.checkpoint_dir, "model_final.pt")
-    torch.save(model.state_dict(), final_path)
+    torch.save({
+        "model": model.state_dict(),
+        "normalizer": obs_normalizer.state_dict(),
+        "iteration": args.num_rollouts,
+        "timesteps": total_timesteps,
+    }, final_path)
     print(f"\nTraining complete. Final model: {final_path}")
     print(f"Total: {total_timesteps} steps, {total_episodes} episodes, {time.time() - start_time:.0f}s")
 
@@ -445,7 +648,7 @@ def train(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Q2AI PPO Training")
+    parser = argparse.ArgumentParser(description="Q2AI PPO Training (LSTM)")
     parser.add_argument("--instance", type=int, default=0, help="Starting instance ID")
     parser.add_argument("--num-envs", type=int, default=1, help="Number of parallel environments")
     parser.add_argument("--lr", type=float, default=3e-5, help="Learning rate")
@@ -456,7 +659,8 @@ if __name__ == "__main__":
     parser.add_argument("--value-coef", type=float, default=0.5, help="Value loss coefficient")
     parser.add_argument("--max-grad-norm", type=float, default=0.5, help="Max gradient norm")
     parser.add_argument("--rollout-len", type=int, default=512, help="Steps per rollout per env")
-    parser.add_argument("--batch-size", type=int, default=512, help="Mini-batch size")
+    parser.add_argument("--seq-len", type=int, default=32, help="LSTM sequence length (TBPTT chunk size)")
+    parser.add_argument("--batch-chunks", type=int, default=16, help="Number of sequence chunks per mini-batch")
     parser.add_argument("--epochs", type=int, default=2, help="PPO epochs per rollout")
     parser.add_argument("--target-kl", type=float, default=0.05, help="KL early stopping threshold (0=disabled)")
     parser.add_argument("--num-rollouts", type=int, default=100000, help="Total rollout iterations")
