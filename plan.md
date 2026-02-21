@@ -96,14 +96,20 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Hybrid action space: 4 continuous + 3 binary + 11 weapon logits
   - State-independent learned log_std for continuous actions
   - Orthogonal initialization, bias tuning for safe initial behavior
+  - `act_batch()` — batched N-env inference in one GPU forward pass
 - [x] `python/train.py` — PPO training loop with multi-instance support
-  - `--num-envs N` for N parallel environments (round-robin data collection)
+  - `--num-envs N` for N parallel environments (tested up to 300)
   - CUDA/GPU support (RTX 3070)
   - GAE advantage estimation, mini-batch updates, gradient clipping
   - CSV logging, periodic checkpoints
+  - ThreadPoolExecutor for parallel semaphore waits (I/O-bound recv_obs)
+  - Semaphore drain + no-op resync between rollout iterations
+  - Batched GPU inference via `act_batch()` (1 forward pass per step, not N)
+  - Pipelined env I/O: send all actions (non-blocking) → recv all obs (parallel)
 - [x] `python/q2ai_env.py` — Gymnasium environment (89-dim observation vector)
   - Normalized observations: position/4096, velocity/400, sin/cos angles, etc.
   - 8 nearest entities with relative position and type
+  - Split step() into send_action() (non-blocking) + recv_obs() (blocking wait)
 - [x] `python/q2ai_structs.py` — ctypes mirrors of C structs
 - [x] Behavior cloning from demo playback (`ai_demo.c` + `python/imitate.py`)
   - Supports both MVD (.mvd2) and DM2 (.dm2) demo formats
@@ -117,15 +123,21 @@ Server:27913 + KaaN[instance=3]  ─┘
 - [x] `q2ai_train.sh` — Control script (start/stop/restart/status/log)
 - [x] Demo extraction: 53 q2dm1 demos, 17,539 frames combined
 - [x] BC model retrained on full dataset (loss 0.098)
-- [x] Multi-instance training tested (6x parallel)
+- [x] Scaled to 300 parallel instances (300 servers + 300 KaaN clients)
+  - ~1,300 steps/sec throughput, ~30s per iteration (38,400 steps/iter)
+  - CPU: ~90% on 12-core, GPU: bursts during PPO updates, RAM: 12/16GB
+- [x] Continuous episodes — no episode resets on death
+  - Auto-respawn in C (`ai_bridge.c`), death penalty (-1.0) still teaches
+  - Eliminates Python-side reset overhead entirely (0 episodes in logs)
+- [x] CPU optimization: `Sys_Sleep(2)` in headless main loop, `cl_maxfps 30`
 - [x] Reward shaping iterated — removed free shaping, added directional incentives
 - [x] `python/monitor.py` — HTML evolution dashboard (auto-starts with training)
   - Kanban-style milestone cards, training charts, server rcon queries
   - Generates `evolve.html`, saves history to `evolve_data.json`
 
 #### In Progress:
-- [ ] Tune hyperparameters based on training curves
-- [ ] Train against skill-1 bots first, gradually increase
+- [ ] Tune hyperparameters based on training curves (entropy rising, KL stabilizing)
+- [ ] Train against skill-1 bots, monitor for first frags
 
 #### Next:
 - [ ] Reward curve analysis and visualization
@@ -214,11 +226,11 @@ The training script manages everything: servers, KaaN clients, and the Python tr
 ```bash
 cd /home/oky/q2ai
 
-# Start training with 6 parallel instances (default)
+# Start training with 16 parallel instances (default)
 ./q2ai_train.sh start
 
-# Start with custom number of instances
-./q2ai_train.sh start 8
+# Start with custom number of instances (tested up to 300)
+./q2ai_train.sh start 300
 
 # Check progress
 ./q2ai_train.sh log
@@ -230,7 +242,7 @@ cd /home/oky/q2ai
 ./q2ai_train.sh stop
 
 # Restart (stop + start)
-./q2ai_train.sh restart 8
+./q2ai_train.sh restart 100
 ```
 
 Each instance runs:
@@ -238,7 +250,9 @@ Each instance runs:
 - A KaaN headless client with `q2ai_instance=i` connecting to that server
 - Shared memory `/q2ai_state_i` + semaphores for IPC
 
-The Python trainer connects to all N instances via `--num-envs N` and collects rollouts in round-robin.
+The Python trainer connects to all N instances via `--num-envs N` and collects rollouts using threaded parallel I/O. Recommended instance counts by hardware:
+- **12-core/16GB/RTX 3070:** 200-300 instances (~90% CPU, ~12GB RAM)
+- Per-instance overhead: ~40MB RAM (server+client), ~1.4% CPU
 
 The monitor auto-starts with training and generates an HTML dashboard:
 - **Dashboard:** `evolve.html` (open in browser, auto-refreshes every 10 min)
@@ -283,9 +297,12 @@ cd python
 
 ## 6. Technical Notes
 
-- **Timing:** Server 10Hz, client `cl_maxfps` (62), `cl_maxpackets` (30). Python inference must be <50ms. Small MLPs are <1ms on GPU.
+- **Timing:** Server 10Hz, client `cl_maxfps 30` (capped for CPU savings), headless loop `Sys_Sleep(2)` between frames. Python inference <1ms on GPU with batched forward pass.
 - **BSP maps:** Required in client's game directory for prediction/collision. Server auto-downloads them.
-- **Multiple instances:** N headless clients on N separate servers for parallel training. Each uses unique `q2ai_instance` (0, 1, 2...) for separate shared memory, and separate server ports (27910, 27911, ...).
+- **Scaling:** Tested up to 300 parallel instances on 12-core/16GB/RTX 3070. Each KaaN client uses ~1.4% CPU. Bottleneck is CPU (88-92% at 300), GPU only bursts during PPO updates.
+- **Continuous episodes:** No episode resets on death — C client auto-respawns, Python sees continuous observation stream. Death penalty (-1.0) still trains combat avoidance. Eliminates all Python-side reset overhead.
+- **Threading:** `ThreadPoolExecutor` for parallel `recv_obs()` calls — semaphore waits are I/O-bound (GIL released). Sequential recv at 300 envs would take 30s; parallel takes ~100ms.
+- **Semaphore resync:** Between PPO update iterations, drain all stale semaphore posts (accumulated while Python was doing gradient updates) and send one no-op round to get fresh observations.
 - **Server setup:** OpenTDM 1v1 mode, `q2ai_team b` since team A has a scripted bot.
 - **Demo extraction:** Both MVD and DM2 formats supported. Velocity computed from position deltas (10Hz). Auto-quit on demo end.
-- **GPU:** CUDA support for PyTorch training. Model weights stay on GPU, only final actions transferred to CPU for env.step().
+- **GPU:** CUDA with batched inference — `act_batch()` stacks N observations into one tensor for a single GPU forward pass instead of N separate calls. Model weights stay on GPU, only final actions transferred to CPU.
