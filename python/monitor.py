@@ -27,16 +27,16 @@ BASE_PORT = 27910
 RCON_PASSWORD = "q2ai"
 
 STAGES = [
-    {"name": "Stop blind firing", "check": "blind_fire", "threshold": "blind fire penalty -0.15/frame"},
+    {"name": "Stop blind firing", "check": "blind_fire", "threshold": "blind fire penalty -0.05/frame"},
     {"name": "Stop crouching", "check": "crouch", "threshold": "crouch penalty -0.10/frame"},
     {"name": "Stop circling", "check": "circling", "threshold": "circling penalty -0.15/3s"},
+    {"name": "Track enemy with aim", "check": "aim_track", "threshold": "aim within 20deg of enemy"},
+    {"name": "Shoot at enemy", "check": "aimed_fire", "threshold": "aimed fire +0.10/frame"},
+    {"name": "Approach enemy", "check": "approach", "threshold": "approach reward +0.03"},
     {"name": "Switch weapons", "check": "weapon_switch", "threshold": "blaster penalty -0.02/frame"},
-    {"name": "Move toward items", "check": "items", "threshold": "pickups per life > 0.5"},
-    {"name": "Survive > 20 seconds", "check": "survive", "threshold": "avg life > 200 frames"},
     {"name": "Get first frag", "check": "frag", "threshold": "frags > 0"},
-    {"name": "Navigate between rooms", "check": "navigate", "threshold": "low stuck rate"},
-    {"name": "Aim at enemy", "check": "aim", "threshold": "aimed fire reward positive"},
     {"name": "Consistent positive reward", "check": "positive", "threshold": "step_reward > 0.01"},
+    {"name": "Frag/death ratio > 0.5", "check": "kd_ratio", "threshold": "frags/deaths > 0.5"},
     {"name": "Win a match", "check": "win", "threshold": "frags > bot frags"},
 ]
 
@@ -89,6 +89,31 @@ def parse_training_log():
     entries = []
     with open(TRAINING_LOG) as f:
         for line in f:
+            # V1.3 format: [  N] steps=N | step_r=X frags=N deaths=N | pi=X v=X ent=X kl=X | Ns
+            m = re.match(
+                r'\[\s*(\d+)\]\s+steps=\s*(\d+)\s+\|\s+'
+                r'step_r=\s*([-\d.]+)\s+frags=\s*(\d+)\s+deaths=\s*(\d+)\s+\|\s+'
+                r'pi=\s*([-\d.]+)\s+v=\s*([-\d.]+)\s+ent=\s*([-\d.]+)\s+'
+                r'kl=\s*([-\d.]+)\s+\|\s+(\d+)s',
+                line.strip()
+            )
+            if m:
+                entries.append({
+                    "iteration": int(m.group(1)),
+                    "steps": int(m.group(2)),
+                    "episodes": 0,
+                    "reward": 0.0,
+                    "step_reward": float(m.group(3)),
+                    "frags": int(m.group(4)),
+                    "deaths": int(m.group(5)),
+                    "policy_loss": float(m.group(6)),
+                    "value_loss": float(m.group(7)),
+                    "entropy": float(m.group(8)),
+                    "kl": float(m.group(9)),
+                    "elapsed": int(m.group(10)),
+                })
+                continue
+            # V1.1 format: [  N] steps=N eps=N | R=X step_r=X frags=X deaths=N | ...
             m = re.match(
                 r'\[\s*(\d+)\]\s+steps=\s*(\d+)\s+eps=\s*(\d+)\s+\|\s+'
                 r'R=\s*([-\d.]+)\s+step_r=\s*([-\d.]+)\s+frags=\s*([-\d.]+)\s+'
@@ -123,37 +148,46 @@ def evaluate_milestones(entries, server_info):
     latest = entries[-1]
     sr = latest["step_reward"]
     frags = latest["frags"]
-    eps = latest["episodes"]
+    deaths = latest["deaths"]
     steps = latest["steps"]
-    avg_life = steps / max(eps, 1)
+
+    # Check across recent entries for cumulative stats
+    recent = entries[-10:] if len(entries) >= 10 else entries
+    total_frags = sum(e["frags"] for e in recent)
+    total_deaths = sum(e["deaths"] for e in recent)
+    avg_sr = sum(e["step_reward"] for e in recent) / len(recent)
 
     statuses = {}
     for s in STAGES:
         check = s["check"]
         if check == "blind_fire":
-            # Blind fire penalty is -0.15/frame — when sr improves past -0.04 he's learning
-            statuses[s["name"]] = "done" if sr > -0.02 else ("progress" if sr > -0.05 else "pending")
+            # V1.3: blind fire penalty reduced to -0.05
+            statuses[s["name"]] = "done" if sr > -0.01 else ("progress" if sr > -0.04 else "pending")
         elif check == "crouch":
-            # Crouch penalty is -0.10/frame — very harsh
             statuses[s["name"]] = "done" if sr > -0.01 else ("progress" if sr > -0.04 else "pending")
         elif check == "circling":
-            # Circling penalty is -0.15 every 3s if < 128 units displacement
-            statuses[s["name"]] = "done" if sr > 0 else ("progress" if sr > -0.03 else "pending")
+            statuses[s["name"]] = "done" if sr > 0 else ("progress" if sr > -0.02 else "pending")
+        elif check == "aim_track":
+            # Aim tracking: +0.02 when looking within 20deg — sr > 0 means tracking
+            statuses[s["name"]] = "done" if avg_sr > 0.005 else ("progress" if avg_sr > -0.005 else "pending")
+        elif check == "aimed_fire":
+            # Aimed fire: +0.10 when shooting at visible enemy
+            statuses[s["name"]] = "done" if avg_sr > 0.01 else ("progress" if avg_sr > 0 else "pending")
+        elif check == "approach":
+            # Approach: +0.03 when moving toward enemy
+            statuses[s["name"]] = "done" if avg_sr > 0.005 else ("progress" if avg_sr > -0.005 else "pending")
         elif check == "weapon_switch":
-            # Blaster penalty -0.02/frame when better weapon available
-            statuses[s["name"]] = "done" if sr > 0.005 else ("progress" if sr > -0.01 else "pending")
-        elif check == "items":
-            statuses[s["name"]] = "done" if sr > 0.005 else "pending"
-        elif check == "survive":
-            statuses[s["name"]] = "done" if avg_life > 200 else ("progress" if avg_life > 100 else "pending")
+            statuses[s["name"]] = "done" if avg_sr > 0.005 else ("progress" if avg_sr > -0.01 else "pending")
         elif check == "frag":
-            statuses[s["name"]] = "done" if frags > 0 else ("progress" if frags > -0.5 else "pending")
-        elif check == "navigate":
-            statuses[s["name"]] = "done" if avg_life > 300 and sr > 0 else "pending"
-        elif check == "aim":
-            statuses[s["name"]] = "done" if frags > 0.5 else "pending"
+            statuses[s["name"]] = "done" if total_frags > 0 else "pending"
         elif check == "positive":
-            statuses[s["name"]] = "done" if sr > 0.01 else ("progress" if sr > 0 else "pending")
+            statuses[s["name"]] = "done" if avg_sr > 0.01 else ("progress" if avg_sr > 0 else "pending")
+        elif check == "kd_ratio":
+            if total_deaths > 0 and total_frags > 0:
+                kd = total_frags / total_deaths
+                statuses[s["name"]] = "done" if kd > 0.5 else ("progress" if kd > 0.1 else "pending")
+            else:
+                statuses[s["name"]] = "pending"
         elif check == "win":
             kaan_score = server_info.get("score", 0)
             bot_score = server_info.get("bot_score", 999)
@@ -217,8 +251,8 @@ def generate_html(history, milestones, latest, server_info):
     # Pre-compute stat values to avoid f-string ternary issues
     sr_val = f"{latest['step_reward']:.4f}" if latest else "0"
     sr_class = "positive" if latest and latest["step_reward"] > 0 else "negative"
-    frags_val = f"{latest['frags']:.1f}" if latest else "0"
-    eps_val = str(latest["episodes"]) if latest else "0"
+    frags_val = str(latest["frags"]) if latest else "0"
+    deaths_val = str(latest["deaths"]) if latest else "0"
     steps_val = f"{latest['steps']:,d}" if latest else "0"
     iter_val = str(latest["iteration"]) if latest else "0"
     ent_val = f"{latest['entropy']:.1f}" if latest else "0"
@@ -273,8 +307,8 @@ canvas {{ background: #151520; border-radius: 8px; padding: 10px; }}
 <h2>Current Stats</h2>
 <div class="stats">
 <div class="stat"><div class="value {sr_class}">{sr_val}</div><div class="label">Step Reward</div></div>
-<div class="stat"><div class="value">{frags_val}</div><div class="label">Avg Frags</div></div>
-<div class="stat"><div class="value">{eps_val}</div><div class="label">Episodes</div></div>
+<div class="stat"><div class="value">{frags_val}</div><div class="label">Frags (last iter)</div></div>
+<div class="stat"><div class="value">{deaths_val}</div><div class="label">Deaths (last iter)</div></div>
 <div class="stat"><div class="value">{steps_val}</div><div class="label">Total Steps</div></div>
 <div class="stat"><div class="value">{iter_val}</div><div class="label">Iteration</div></div>
 <div class="stat"><div class="value">{ent_val}</div><div class="label">Entropy</div></div>
@@ -371,21 +405,23 @@ def get_observation(latest):
         return ""
     sr = latest["step_reward"]
     frags = latest["frags"]
+    deaths = latest["deaths"]
 
     if sr < -0.04:
         return "Heavy penalties — bad habits dominating"
     elif sr < -0.02:
         return "Still penalized — learning slowly"
     elif sr < 0:
-        return "Penalties decreasing — improving"
+        return f"Improving — {deaths} deaths, {frags} frags"
     elif sr < 0.005:
-        return "Near zero — transitioning"
-    elif frags > 1:
-        return f"Fighting! {frags:.1f} frags avg"
+        return f"Near break-even — {deaths} deaths, {frags} frags"
+    elif frags > 5:
+        kd = frags / max(deaths, 1)
+        return f"Combat engaged! {frags} frags, K/D={kd:.2f}"
     elif frags > 0:
-        return f"Getting kills, step_r={sr:.4f}"
+        return f"Getting kills! {frags} frags, {deaths} deaths"
     else:
-        return f"Positive reward, exploring"
+        return f"Tracking enemy — step_r={sr:.4f}, {deaths} deaths"
 
 
 def main():

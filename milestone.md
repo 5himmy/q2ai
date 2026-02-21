@@ -24,13 +24,16 @@
 
 **Item Respawn:** Items respawn 20-30 seconds after pickup. Controlling when items respawn (timing) is the core strategic skill.
 
-**Map: q2dm1 "The Edge"** — Classic duel map. Two main levels connected by ramps, lifts, and a teleporter. No red armor on this map. Key positions: RL room, mega health area, yellow armor spots.
+**Training Map: 2box6** — Tiny box map, no items or weapons. Forces constant close-range combat. KaaN spawns with all weapons + 100 armor. Scripted bot (skill 3) also in the box.
+
+**Target Map: q2dm1 "The Edge"** — Classic duel map. Two main levels connected by ramps, lifts, and a teleporter. No red armor on this map. Key positions: RL room, mega health area, yellow armor spots. (Used after KaaN learns combat basics on 2box6.)
 
 **Match Format:**
-- 10-minute timelimit
-- 1 minute overtime if tied
-- Both players must `/ready` to start
-- Warmup phase before match (all weapons available, no score)
+- 3-minute timelimit (short rounds for fast iteration)
+- No overtime (g_tie_mode 0)
+- 1-second countdown
+- Auto-ready via bots
+- All weapons given on spawn (2box6 has no pickups)
 
 **Movement Physics:**
 - Base run speed: 300 units/second
@@ -40,7 +43,7 @@
 
 ---
 
-## Reward Rules (what KaaN learns from)
+## Reward Rules V1.3 (what KaaN learns from)
 
 These are the signals that shape KaaN's behavior during PPO training:
 
@@ -53,50 +56,58 @@ These are the signals that shape KaaN's behavior during PPO training:
 | Circling (< 128 units in 3s) | **-0.15** | Must explore, not circle in place |
 | Move backward | -0.01 | No backward circling |
 | Crouch (per frame) | **-0.10** | Crouching is never good in duel |
-| Shoot at visible enemy | +0.02 | Reward aimed fire |
-| Shoot blindly (no enemy) | **-0.15** | Very harsh penalty for spray-and-pray |
-| Using blaster with better weapon | **-0.02** | Switch to a real weapon! |
-| Approach visible enemy | **+0.01** | Go fight, don't run away |
+| **Aim at enemy (within 20deg)** | **+0.02** | Track enemy even when not shooting |
+| **Shoot at visible enemy** | **+0.10** | Strong reward for aimed fire |
+| Shoot blindly (no enemy) | -0.05 | Mild penalty (encourage experimentation) |
+| Using blaster with better weapon | -0.02 | Switch to a real weapon! |
+| **Approach visible enemy** | **+0.03** | Go fight aggressively |
 | Retreat from enemy | -0.005 | Mild penalty (sometimes retreat is smart) |
 | Pick up health/armor | +0.2 | Learn to collect resources |
 | Pick up weapon | +0.3 | Learn to arm yourself |
 | Approach nearest item | +0.003/unit | Subtle pull toward items |
 
-**Design philosophy:** No free rewards for existing. No survival bonus, no undirected movement reward. The only way to earn positive reward is fighting (frags, aimed shots, approaching enemy) or picking up items. Circling, crouching, blind-firing, and ignoring collected weapons are heavily punished.
+**V1.3 changes (bold above):** Boosted aimed fire 5x (+0.02 to +0.10), added aim tracking reward (+0.02 for looking at enemy), boosted approach reward 3x (+0.01 to +0.03), reduced blind fire penalty 3x (-0.15 to -0.05). These changes strongly incentivize combat engagement.
+
+**Design philosophy:** Combat-first reward design. The strongest positive signals come from looking at the enemy, shooting at them, and moving toward them. On the training map (2box6), the enemy is always nearby — dense combat for fast learning.
 
 ---
 
 ## Training Infrastructure
 
-- **KaaN V1.1** — 300 parallel instances on 12-core/16GB/RTX 3070
+- **KaaN V1.3** — 100 parallel instances on 12-core/16GB/RTX 3070
+- **Map:** 2box6 (tiny box, constant combat, 30-70 deaths per iteration)
+- **Separate Actor/Critic networks** — no shared trunk (V1.2 fix: value gradients were destroying policy)
 - **Continuous episodes** — no resets on death. Auto-respawn in C, continuous observation stream.
-- **~1,500 steps/sec** throughput, ~26s per iteration (38,400 steps/iter)
+- **~1,000 steps/sec** throughput, ~13s per iteration (12,800 steps/iter at 100 instances)
 - **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt)
-- **Reward scaling** — 10x multiplier so value function gets meaningful gradients
+- **Reward scaling** — 5x multiplier (REWARD_SCALE = 5.0)
 - **Observation normalization** — running mean/std (Welford's algorithm), clips to [-5, 5]
-- **Batch size 512** — 300 gradient updates/iter (was 1,200 with batch 128)
-- **Entropy fix** — log_std clamped [-2.0, 0.5], entropy_coef 0.003 (prevents runaway)
+- **PPO hyperparameters:** lr=3e-5, epochs=2, batch_size=512, target_kl=0.05, entropy_coef=0.003
+- **KL stability:** avg_kl=0.004-0.007, target_kl early stopping per mini-batch
 - Batched GPU inference, threaded parallel I/O, semaphore resync between PPO updates
+- Real frag/death tracking from game state (not episode counters)
 
 ---
 
 ## Stage 1: Newborn (current stage)
 
-KaaN spawns into q2dm1 with muscle memory from behavior cloning. He moves forward, shoots when he sees someone, and sometimes jumps. But he has no understanding of *why* — he's mimicking without comprehension.
+KaaN trains in 2box6 — a tiny box map with constant combat. He spawns with all weapons and faces a skill-3 scripted bot. The dense combat environment lets him experience 30-70 deaths per iteration, providing strong learning signal.
 
-**Current observations (V1.1, iteration 1):**
-- step_reward: -0.02 (improved from -0.10 with obs normalization)
-- value_loss: 4.27 (value function learning, was 0.13 before reward scaling)
-- Entropy: 7.2 (stable, no runaway)
-- 0 frags so far
+**Current observations (V1.3, 2box6, 100 instances):**
+- step_reward: +0.003 (first positive reward thanks to aim tracking + approach rewards)
+- 33-73 deaths per iteration (constant combat in small box)
+- 3+ total frags so far (accidental rocket splash, not intentional yet)
+- KL: 0.004-0.007 (rock stable)
+- Entropy: 6.95 (healthy exploration)
+- Training stable at lr=3e-5, separate actor/critic networks
 
 **Signs of progress:**
 - Doesn't stand still (moves forward most of the time)
-- Stops shooting when no enemy is visible
-- Survives more than 5 seconds per life
-- Occasionally picks up items by accident
+- Stopped crouching (penalty worked)
+- Getting positive reward from aim tracking and approaching enemy
+- Occasional lucky kills from rocket splash damage
 
-**Metrics:** step_reward > 0, mean_frags > 0, blind-fire rate < 30%
+**Metrics:** step_reward > 0.01, frags > 5 per iteration, frag/death ratio > 0.1
 
 ---
 
