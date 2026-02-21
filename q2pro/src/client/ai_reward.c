@@ -11,12 +11,13 @@
  *   -0.01  stuck penalty (speed < 20)
  *   -0.15  circling penalty (< 128 units from checkpoint after 30 frames)
  *   -0.01  backward movement penalty
- *   -0.15  blind-fire penalty
- *   +0.02  shooting at visible enemy
+ *   -0.05  blind-fire penalty (mild — encourage shooting experimentation)
+ *   +0.10  shooting at visible enemy (strong — learn to aim)
+ *   +0.02  aim tracking (looking within 20° of enemy, even without shooting)
  *   -0.02  blaster penalty (has better weapon but won't switch)
  *   +0.2   health/armor pickup
  *   +0.3   weapon pickup
- *   +0.01  approaching enemy when visible
+ *   +0.03  approaching enemy when visible
  *   item proximity shaping (approach items)
  */
 
@@ -148,6 +149,7 @@ float AI_Reward_Compute(void)
     // Find enemy player
     bool enemy_visible = false;
     float enemy_dist = 99999.0f;
+    float enemy_dx = 0, enemy_dy = 0, enemy_dz = 0;
     if (cur_pm_type == PM_NORMAL && cur_health > 0) {
         for (i = 0; i < cl.frame.numEntities; i++) {
             int k = (cl.frame.firstEntity + i) & PARSE_ENTITIES_MASK;
@@ -155,21 +157,42 @@ float AI_Reward_Compute(void)
             if (es->number >= 1 && es->number <= cl.maxclients &&
                 es->number != cl.frame.clientNum + 1) {
                 enemy_visible = true;
-                float dx = es->s.origin[0] - cl.predicted_origin[0];
-                float dy = es->s.origin[1] - cl.predicted_origin[1];
-                float dz = es->s.origin[2] - cl.predicted_origin[2];
-                enemy_dist = sqrtf(dx*dx + dy*dy + dz*dz);
+                enemy_dx = es->s.origin[0] - cl.predicted_origin[0];
+                enemy_dy = es->s.origin[1] - cl.predicted_origin[1];
+                enemy_dz = es->s.origin[2] - cl.predicted_origin[2];
+                enemy_dist = sqrtf(enemy_dx*enemy_dx + enemy_dy*enemy_dy + enemy_dz*enemy_dz);
                 break;
             }
+        }
+    }
+
+    // Aim tracking reward: looking within 20° of enemy (even without shooting)
+    if (enemy_visible && enemy_dist > 1.0f) {
+        float yaw_rad = ps->viewangles[1] * (M_PI / 180.0f);
+        float pitch_rad = ps->viewangles[0] * (M_PI / 180.0f);
+        // View direction vector
+        float vdir_x = cosf(pitch_rad) * cosf(yaw_rad);
+        float vdir_y = cosf(pitch_rad) * sinf(yaw_rad);
+        float vdir_z = -sinf(pitch_rad);
+        // Direction to enemy (normalized)
+        float inv_dist = 1.0f / enemy_dist;
+        float edir_x = enemy_dx * inv_dist;
+        float edir_y = enemy_dy * inv_dist;
+        float edir_z = enemy_dz * inv_dist;
+        // Dot product = cos(angle between view and enemy)
+        float dot = vdir_x * edir_x + vdir_y * edir_y + vdir_z * edir_z;
+        // 20° = cos(20°) ≈ 0.94
+        if (dot > 0.94f) {
+            reward += 0.02f;  // aim tracking: looking at enemy
         }
     }
 
     // Shooting rewards/penalties
     if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack) {
         if (!enemy_visible) {
-            reward -= 0.15f;  // blind fire: very harsh penalty
+            reward -= 0.05f;  // blind fire: mild penalty (encourage experimentation)
         } else {
-            reward += 0.02f;  // aimed fire: small reward
+            reward += 0.10f;  // aimed fire: strong reward (learn to shoot at enemy)
         }
     }
 
@@ -190,9 +213,9 @@ float AI_Reward_Compute(void)
     // Enemy approach reward: when you see the enemy, go fight them
     if (enemy_visible && prev_enemy_dist < 90000.0f) {
         float approach = prev_enemy_dist - enemy_dist;
-        // +0.01 per frame when approaching, -0.005 when retreating
+        // +0.03 per frame when approaching, -0.005 when retreating
         if (approach > 0) {
-            reward += 0.01f * fminf(approach / 100.0f, 1.0f);
+            reward += 0.03f * fminf(approach / 100.0f, 1.0f);
         } else {
             reward -= 0.005f;  // mild retreat penalty (sometimes retreat is smart)
         }

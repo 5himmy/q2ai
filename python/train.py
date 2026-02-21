@@ -285,6 +285,11 @@ def train(args):
     ep_reward = [0.0] * num_envs
     ep_frags = [0] * num_envs
     ep_length = [0] * num_envs
+    # Track frags/deaths directly (continuous episodes don't have episode boundaries)
+    prev_frags = [0] * num_envs
+    prev_health = [100] * num_envs
+    rollout_frags = 0
+    rollout_deaths = 0
 
     start_time = time.time()
 
@@ -301,6 +306,8 @@ def train(args):
     for iteration in range(1, args.num_rollouts + 1):
         buffer.reset()
         rollout_rewards = []
+        rollout_frags = 0
+        rollout_deaths = 0
 
         # Drain stale semaphore posts from PPO update gap (C clients kept posting)
         for env in envs:
@@ -343,6 +350,15 @@ def train(args):
                 ep_reward[e] += reward  # track unscaled for logging
                 ep_length[e] += 1
                 ep_frags[e] = info.get("frags", ep_frags[e])
+                # Track combat stats directly from info
+                cur_frags = info.get("frags", 0)
+                cur_health = info.get("health", 100)
+                if cur_frags > prev_frags[e]:
+                    rollout_frags += cur_frags - prev_frags[e]
+                if cur_health <= 0 and prev_health[e] > 0:
+                    rollout_deaths += 1
+                prev_frags[e] = cur_frags
+                prev_health[e] = cur_health
 
                 obs_list[e] = obs_normalizer.normalize(next_obs_raw)
 
@@ -395,8 +411,8 @@ def train(args):
             mean_l = np.mean(recent_lengths)
             step_r = np.mean(rollout_rewards) if rollout_rewards else 0.0
 
-            print(f"[{iteration:>6}] steps={total_timesteps:>8} eps={total_episodes:>4} | "
-                  f"R={mean_r:>7.2f} step_r={step_r:>7.4f} frags={mean_f:>5.1f} deaths={total_episodes} | "
+            print(f"[{iteration:>6}] steps={total_timesteps:>8} | "
+                  f"step_r={step_r:>7.4f} frags={rollout_frags:>3} deaths={rollout_deaths:>3} | "
                   f"pi={metrics['policy_loss']:>7.4f} v={metrics['value_loss']:>7.4f} "
                   f"ent={metrics['entropy']:>6.3f} kl={metrics['approx_kl']:>7.4f} | "
                   f"{elapsed:>6.0f}s")

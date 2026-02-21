@@ -1243,12 +1243,29 @@ void TDM_SetInitialItems(edict_t *ent) {
         if (g_gamemode->value == GAMEMODE_ITDM) {
             item = GETITEM(ITEM_WEAPON_RAILGUN);
             Add_Ammo(ent, GETITEM(item->ammoindex), 1000);
+            client->weapon = item;
+            client->selected_item = ITEM_INDEX(item);
+            client->inventory[client->selected_item] = 1;
+        } else if (g_spawn_bots->value) {
+            // AI training: spawn with all weapons + ammo (like warmup)
+            for (i = 1; i < game.num_items; i++) {
+                item = GETITEM(i);
+                if ((item->flags & IT_WEAPON) && i != ITEM_WEAPON_BFG) {
+                    client->inventory[i] = 1;
+                    if (item->ammoindex) {
+                        Add_Ammo(ent, GETITEM(item->ammoindex), 1000);
+                    }
+                }
+            }
+            client->selected_item = ITEM_WEAPON_ROCKETLAUNCHER;
+            client->weapon = GETITEM(ITEM_WEAPON_ROCKETLAUNCHER);
+            client->inventory[ITEM_ITEM_ARMOR_BODY] = 100;
         } else {
             item = GETITEM(ITEM_WEAPON_BLASTER);
+            client->weapon = item;
+            client->selected_item = ITEM_INDEX(item);
+            client->inventory[client->selected_item] = 1;
         }
-        client->weapon = item;
-        client->selected_item = ITEM_INDEX(item);
-        client->inventory[client->selected_item] = 1;
         break;
     }
 }
