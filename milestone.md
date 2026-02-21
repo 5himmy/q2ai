@@ -43,47 +43,50 @@
 
 ---
 
-## Reward Rules V1.3 (what KaaN learns from)
+## Reward Rules V1.4 (what KaaN learns from)
 
 These are the signals that shape KaaN's behavior during PPO training:
 
 | Signal | Reward | Purpose |
 |--------|--------|---------|
-| Kill enemy | **+1.0** | Primary objective |
-| Die | **-1.0** | Primary penalty |
-| Take damage | **-damage/100** | Learn to dodge |
+| Kill enemy | +1.0 | Primary objective |
+| Die | -1.0 | Primary penalty |
+| Take damage | -damage/100 | Learn to dodge |
+| **Deal damage** | **+damage/100** | Dense combat signal (via STAT_FLASHES) |
+| **Hit confirmation** | **+0.15** | Bonus for landing any hit |
+| **Aim at enemy (within 10deg)** | +0.02 | Precise aim tracking (tightened from 20°) |
+| Shoot at visible enemy | +0.05 | Aimed fire (reduced — damage dealt is real reward) |
+| Shoot blindly (no enemy) | -0.03 | Mild penalty |
 | Get stuck (speed < 20) | -0.01 | Don't stand still |
-| Circling (< 128 units in 3s) | **-0.15** | Must explore, not circle in place |
-| Move backward | -0.01 | No backward circling |
-| Crouch (per frame) | **-0.10** | Crouching is never good in duel |
-| **Aim at enemy (within 20deg)** | **+0.02** | Track enemy even when not shooting |
-| **Shoot at visible enemy** | **+0.10** | Strong reward for aimed fire |
-| Shoot blindly (no enemy) | -0.05 | Mild penalty (encourage experimentation) |
+| Circling (< 128 units in 3s) | -0.15 | Must explore, not circle in place |
+| Move backward | -0.005 | Mild backward penalty |
+| Crouch (per frame) | -0.10 | Crouching is never good in duel |
 | Using blaster with better weapon | -0.02 | Switch to a real weapon! |
-| **Approach visible enemy** | **+0.03** | Go fight aggressively |
-| Retreat from enemy | -0.005 | Mild penalty (sometimes retreat is smart) |
-| Pick up health/armor | +0.2 | Learn to collect resources |
-| Pick up weapon | +0.3 | Learn to arm yourself |
-| Approach nearest item | +0.003/unit | Subtle pull toward items |
+| Approach visible enemy | +0.01 | Go fight (reduced — damage is better signal) |
+| Retreat from enemy | -0.003 | Mild retreat penalty |
+| Pick up health/armor | +0.1 | Learn to collect resources (reduced) |
+| Pick up weapon | +0.15 | Learn to arm yourself (reduced) |
+| Approach nearest item | +0.001/unit | Subtle pull toward items (reduced 3x) |
 
-**V1.3 changes (bold above):** Boosted aimed fire 5x (+0.02 to +0.10), added aim tracking reward (+0.02 for looking at enemy), boosted approach reward 3x (+0.01 to +0.03), reduced blind fire penalty 3x (-0.15 to -0.05). These changes strongly incentivize combat engagement.
+**V1.4 changes (bold above):** Added damage dealt reward (+damage/100) via opentdm's existing damage tracking exposed through STAT_FLASHES. Added hit confirmation bonus (+0.15). Tightened aim cone from 20° to 10°. Halved all non-combat shaping rewards (pickups, approach, item proximity) to prevent reward farming.
 
-**Design philosophy:** Combat-first reward design. The strongest positive signals come from looking at the enemy, shooting at them, and moving toward them. On the training map (2box6), the enemy is always nearby — dense combat for fast learning.
+**Design philosophy:** Damage dealt is the missing bridge between "shooting at enemy" and "getting a frag". Every rocket that connects gives immediate reward, not just the killing blow. Non-combat shaping reduced so the policy optimizes for actual combat effectiveness.
 
 ---
 
 ## Training Infrastructure
 
-- **KaaN V1.3** — 100 parallel instances on 12-core/16GB/RTX 3070
-- **Map:** 2box6 (tiny box, constant combat, 30-70 deaths per iteration)
+- **KaaN V1.4** — 200 parallel instances on 12-core/16GB/RTX 3070
+- **Map:** 2box6 (tiny box, constant combat, 70-135 deaths per iteration)
 - **Separate Actor/Critic networks** — no shared trunk (V1.2 fix: value gradients were destroying policy)
 - **Continuous episodes** — no resets on death. Auto-respawn in C, continuous observation stream.
-- **~1,000 steps/sec** throughput, ~13s per iteration (12,800 steps/iter at 100 instances)
+- **~2,000 steps/sec** throughput, ~14s per iteration (25,600 steps/iter at 200 instances)
 - **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt)
 - **Reward scaling** — 5x multiplier (REWARD_SCALE = 5.0)
 - **Observation normalization** — running mean/std (Welford's algorithm), clips to [-5, 5]
 - **PPO hyperparameters:** lr=3e-5, epochs=2, batch_size=512, target_kl=0.05, entropy_coef=0.003
-- **KL stability:** avg_kl=0.004-0.007, target_kl early stopping per mini-batch
+- **KL stability:** avg_kl=0.005-0.006, target_kl early stopping per mini-batch
+- **Damage dealt tracking** — opentdm exposes per-frame damage via STAT_FLASHES (self-damage filtered)
 - Batched GPU inference, threaded parallel I/O, semaphore resync between PPO updates
 - Real frag/death tracking from game state (not episode counters)
 
@@ -93,12 +96,13 @@ These are the signals that shape KaaN's behavior during PPO training:
 
 KaaN trains in 2box6 — a tiny box map with constant combat. He spawns with all weapons and faces a skill-3 scripted bot. The dense combat environment lets him experience 30-70 deaths per iteration, providing strong learning signal.
 
-**Current observations (V1.3, 2box6, 100 instances):**
-- step_reward: +0.003 (first positive reward thanks to aim tracking + approach rewards)
-- 33-73 deaths per iteration (constant combat in small box)
-- 3+ total frags so far (accidental rocket splash, not intentional yet)
-- KL: 0.004-0.007 (rock stable)
-- Entropy: 6.95 (healthy exploration)
+**Current observations (V1.4, 2box6, 200 instances):**
+- step_reward: -0.004 to -0.007 (adjusting to V1.4 reward structure)
+- 69-135 deaths per iteration (constant combat, 200 instances)
+- Occasional frags (2 at iter 10, still mostly accidental)
+- KL: 0.005-0.006 (rock stable)
+- Entropy: 7.06-7.08 (healthy exploration)
+- Damage dealt reward now provides dense learning signal between "shooting at enemy" and "getting a frag"
 - Training stable at lr=3e-5, separate actor/critic networks
 
 **Signs of progress:**
