@@ -9,9 +9,9 @@ Group encoders:
   - Inventory: weapon_1hot + owned + ammo → Linear(27→64)
   - Enemy: visible + rel_xyz + dist + angle → Linear(7→64)
   - Entities: 8×[xyz+active+type] → shared Linear(5→64) + attention pool → 64
-  - Game: frags + enemy_frags + match_time → 3 (passthrough)
+  - Game: frags + enemy_frags + match_time + damage_dealt → 4 (passthrough)
 
-Fusion: Linear(291→256) → ReLU → Linear(256→256) → ReLU (shared)
+Fusion: Linear(292→256) → ReLU → Linear(256→256) → ReLU (shared)
 Then: separate Actor LSTM(256→256) + Critic LSTM(256→256)
 
 Actor head: Linear(256→18) — 4 continuous + 3 binary + 11 weapon.
@@ -169,9 +169,9 @@ class ActorCritic(nn.Module):
         self.entity_attn = EntityAttention(entity_dim=5, hidden_dim=64)
 
         # --- Shared Fusion ---
-        # Input: self(96) + inv(64) + enemy(64) + entities(64) + game(3) = 291
+        # Input: self(96) + inv(64) + enemy(64) + entities(64) + game(4) = 292
         self.fusion = nn.Sequential(
-            layer_init(nn.Linear(291, self.HIDDEN_SIZE)),
+            layer_init(nn.Linear(292, self.HIDDEN_SIZE)),
             nn.ReLU(),
             layer_init(nn.Linear(self.HIDDEN_SIZE, self.HIDDEN_SIZE)),
             nn.ReLU(),
@@ -186,7 +186,7 @@ class ActorCritic(nn.Module):
             self.actor.bias[2] = 0.3    # forward: slight tendency to move
             self.actor.bias[4] = -2.2   # jump: ~10%
             self.actor.bias[5] = -10.0  # crouch: effectively disabled (~0.005%)
-            self.actor.bias[6] = -4.0   # attack: ~2% (avoid rocket suicide)
+            self.actor.bias[6] = -1.0   # attack: ~27% (aggressive, learn aim fast)
             self.actor.bias[7] = 2.0    # weapon 0: no switch (strong preference)
 
         self.critic_lstm = nn.LSTM(self.HIDDEN_SIZE, self.HIDDEN_SIZE, batch_first=True)
@@ -225,7 +225,7 @@ class ActorCritic(nn.Module):
         ammo = obs[..., 35:41]      # 6
         enemy = obs[..., 41:48]     # 7
         ent_flat = obs[..., 48:88]  # 40 → reshape to (..., 8, 5)
-        game = obs[..., 88:91]      # 3  frags, enemy_frags, match_time
+        game = obs[..., 88:92]      # 4  frags, enemy_frags, match_time, damage_dealt
 
         # --- Self state group ---
         pos_fourier = self.fourier(pos)  # (..., 27)

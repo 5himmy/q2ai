@@ -60,6 +60,9 @@ typedef struct {
     int32_t     enemy_visible;      // 1 if enemy is in current frame
     int32_t     enemy_client_num;   // client number of enemy, -1 if none
 
+    // Combat feedback
+    int32_t     damage_dealt;       // from STAT_FLASHES, resets each frame
+
     // Game info
     char        mapname[64];
     int32_t     serverframe;

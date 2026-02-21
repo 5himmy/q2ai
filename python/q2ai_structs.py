@@ -111,6 +111,7 @@ class AiObservation(ctypes.Structure):
         ("enemy_angles", ctypes.c_float * 3),
         ("enemy_visible", ctypes.c_int32),
         ("enemy_client_num", ctypes.c_int32),
+        ("damage_dealt", ctypes.c_int32),
         ("mapname", ctypes.c_char * 64),
         ("serverframe", ctypes.c_int32),
         ("servertime", ctypes.c_int32),
@@ -151,4 +152,4 @@ assert ctypes.sizeof(AiEntityObs) == 48, f"AiEntityObs size mismatch: {ctypes.si
 assert ctypes.sizeof(AiAction) == 20, f"AiAction size mismatch: {ctypes.sizeof(AiAction)}"
 # AiObservation grew by: enemy_origin(12) + enemy_angles(12) + enemy_visible(4) + enemy_client_num(4) = 32 bytes
 # AiSharedState = 4276 + 32 = 4308
-assert ctypes.sizeof(AiSharedState) == 4308, f"AiSharedState size mismatch: {ctypes.sizeof(AiSharedState)}"
+assert ctypes.sizeof(AiSharedState) == 4312, f"AiSharedState size mismatch: {ctypes.sizeof(AiSharedState)}"

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>KaaN Neural Network Visualizer</title>
+<title>KaaN V2.5 Neural Network Visualizer</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -10,7 +10,7 @@ body {
   background: #0a0a0f;
   color: #e0e0e0;
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1300px;
   margin: 0 auto;
 }
 h1 { color: #ff6b35; margin-bottom: 5px; }
@@ -163,22 +163,22 @@ tr:hover {
 </head>
 <body>
 
-<h1>KaaN -- Neural Network Visualizer</h1>
-<p class="subtitle">Model: model_200.pt | Generated: 2026-02-21 23:55:34 | OBS_DIM: 91</p>
+<h1>KaaN V2.5 -- Neural Network Visualizer</h1>
+<p class="subtitle">Model: model_300.pt | Generated: 2026-02-22 01:50:23 | OBS_DIM: 92 | Grouped Encoder + Entity Attention + Fourier Position</p>
 
 <div class="stat-bar">
-  <div class="stat-item"><div class="val">246,935</div><div class="lbl">Total Parameters</div></div>
-  <div class="stat-item"><div class="val">91</div><div class="lbl">Input Features</div></div>
+  <div class="stat-item"><div class="val">1,204,855</div><div class="lbl">Total Parameters</div></div>
+  <div class="stat-item"><div class="val">92</div><div class="lbl">Input Features</div></div>
   <div class="stat-item"><div class="val">18</div><div class="lbl">Action Outputs</div></div>
-  <div class="stat-item"><div class="val">3</div><div class="lbl">Hidden Layers</div></div>
-  <div class="stat-item"><div class="val">2</div><div class="lbl">Networks (A/C)</div></div>
+  <div class="stat-item"><div class="val">5</div><div class="lbl">Obs Groups</div></div>
+  <div class="stat-item"><div class="val">2</div><div class="lbl">LSTMs (A/C)</div></div>
 </div>
 
 <!-- Architecture Diagram -->
 <div class="section">
 <h2>Architecture Diagram</h2>
 <div class="svg-container">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" width="100%" height="auto" style="max-width:1100px">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" width="100%" height="auto" style="max-width:1200px">
 <defs>
   <linearGradient id="gActor" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0%" stop-color="#3a7bd5"/>
@@ -196,150 +196,171 @@ tr:hover {
     <stop offset="0%" stop-color="#e67e22"/>
     <stop offset="100%" stop-color="#d35400"/>
   </linearGradient>
+  <linearGradient id="gFourier" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#e74c3c"/>
+    <stop offset="100%" stop-color="#c0392b"/>
+  </linearGradient>
+  <linearGradient id="gEntity" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#f39c12"/>
+    <stop offset="100%" stop-color="#d68910"/>
+  </linearGradient>
+  <linearGradient id="gFusion" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#2c3e50"/>
+    <stop offset="100%" stop-color="#1a252f"/>
+  </linearGradient>
   <filter id="shadow">
     <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
   </filter>
 </defs>
-<rect width="1100" height="620" fill="#0d0d15" rx="10"/>
-<text x="550" y="30" text-anchor="middle" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="14">KaaN Neural Network Architecture</text>
-<text x="60" y="65" fill="#3a7bd5" font-family="Segoe UI,system-ui,sans-serif" font-size="16" font-weight="bold">Actor Network</text>
-<rect x="40" y="80" width="110" height="50" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
-<text x="95.0" y="101.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Input</text>
-<text x="95.0" y="117.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">91 features</text>
-<text x="95.0" y="74" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=91</text>
-<line x1="150" y1="99" x2="200" y2="99" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="102" x2="200" y2="102" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="105" x2="200" y2="105" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="108" x2="200" y2="108" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="111" x2="200" y2="111" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="105" x2="200" y2="105" stroke="#7D5BA6" stroke-width="1.5" opacity="0.5"/>
-<rect x="200" y="80" width="110" height="50" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
-<text x="255.0" y="101.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Dense+ReLU</text>
-<text x="255.0" y="117.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">256 units</text>
-<text x="255.0" y="74" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=256</text>
-<line x1="310" y1="99" x2="360" y2="99" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="102" x2="360" y2="102" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="105" x2="360" y2="105" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="108" x2="360" y2="108" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="111" x2="360" y2="111" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="105" x2="360" y2="105" stroke="#4A7BD5" stroke-width="1.5" opacity="0.5"/>
-<rect x="360" y="80" width="110" height="50" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
-<text x="415.0" y="101.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Dense+ReLU</text>
-<text x="415.0" y="117.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">256 units</text>
-<text x="415.0" y="74" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=256</text>
-<line x1="470" y1="99" x2="520" y2="99" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="102" x2="520" y2="102" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="105" x2="520" y2="105" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="108" x2="520" y2="108" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="111" x2="520" y2="111" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="105" x2="520" y2="105" stroke="#4A7BD5" stroke-width="1.5" opacity="0.5"/>
-<rect x="520" y="80" width="110" height="50" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
-<text x="575.0" y="101.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Dense+ReLU</text>
-<text x="575.0" y="117.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">128 units</text>
-<text x="575.0" y="74" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=128</text>
-<line x1="630" y1="99" x2="680" y2="99" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="102" x2="680" y2="102" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="105" x2="680" y2="105" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="108" x2="680" y2="108" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="111" x2="680" y2="111" stroke="#4A7BD5" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="105" x2="680" y2="105" stroke="#4A7BD5" stroke-width="1.5" opacity="0.5"/>
-<rect x="680" y="80" width="110" height="50" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
-<text x="735.0" y="101.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Actor Head</text>
-<text x="735.0" y="117.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">18 outputs</text>
-<text x="735.0" y="74" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=18</text>
-<line x1="790" y1="92" x2="840" y2="35" stroke="#e67e22" stroke-width="1.5" opacity="0.6"/>
-<line x1="790" y1="105" x2="840" y2="105" stroke="#e67e22" stroke-width="1.5" opacity="0.6"/>
-<line x1="790" y1="117" x2="840" y2="175" stroke="#e67e22" stroke-width="1.5" opacity="0.6"/>
-<rect x="840" y="10" width="200" height="50" rx="6" fill="url(#gHead)" filter="url(#shadow)" opacity="0.9"/>
-<text x="940.0" y="31.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Continuous (4)</text>
-<text x="940.0" y="47.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">yaw, pitch, fwd, side</text>
-<rect x="840" y="80" width="200" height="50" rx="6" fill="url(#gHead)" filter="url(#shadow)" opacity="0.9"/>
-<text x="940.0" y="101.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Binary (3)</text>
-<text x="940.0" y="117.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">jump, crouch, attack</text>
-<rect x="840" y="150" width="200" height="50" rx="6" fill="url(#gHead)" filter="url(#shadow)" opacity="0.9"/>
-<text x="940.0" y="171.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Weapon (11)</text>
-<text x="940.0" y="187.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">Categorical select</text>
-<text x="1050" y="22" fill="#e67e22" font-family="monospace" font-size="10">+ action_log_std (learned)</text>
-<text x="1050" y="100" fill="#e67e22" font-family="monospace" font-size="10">Bernoulli(logits)</text>
-<text x="1050" y="170" fill="#e67e22" font-family="monospace" font-size="10">Categorical(logits)</text>
-<line x1="20" y1="240" x2="1080" y2="240" stroke="#333" stroke-width="1" stroke-dasharray="8,4"/>
-<text x="60" y="275" fill="#27ae60" font-family="Segoe UI,system-ui,sans-serif" font-size="16" font-weight="bold">Critic Network</text>
-<rect x="40" y="290" width="110" height="50" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
-<text x="95.0" y="311.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Input</text>
-<text x="95.0" y="327.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">91 features</text>
-<text x="95.0" y="284" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=91</text>
-<line x1="150" y1="309" x2="200" y2="309" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="312" x2="200" y2="312" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="315" x2="200" y2="315" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="318" x2="200" y2="318" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="321" x2="200" y2="321" stroke="#7D5BA6" stroke-width="0.8" opacity="0.3"/>
-<line x1="150" y1="315" x2="200" y2="315" stroke="#7D5BA6" stroke-width="1.5" opacity="0.5"/>
-<rect x="200" y="290" width="110" height="50" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
-<text x="255.0" y="311.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Dense+ReLU</text>
-<text x="255.0" y="327.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">256 units</text>
-<text x="255.0" y="284" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=256</text>
-<line x1="310" y1="309" x2="360" y2="309" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="312" x2="360" y2="312" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="315" x2="360" y2="315" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="318" x2="360" y2="318" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="321" x2="360" y2="321" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="310" y1="315" x2="360" y2="315" stroke="#27ae60" stroke-width="1.5" opacity="0.5"/>
-<rect x="360" y="290" width="110" height="50" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
-<text x="415.0" y="311.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Dense+ReLU</text>
-<text x="415.0" y="327.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">256 units</text>
-<text x="415.0" y="284" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=256</text>
-<line x1="470" y1="309" x2="520" y2="309" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="312" x2="520" y2="312" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="315" x2="520" y2="315" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="318" x2="520" y2="318" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="321" x2="520" y2="321" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="470" y1="315" x2="520" y2="315" stroke="#27ae60" stroke-width="1.5" opacity="0.5"/>
-<rect x="520" y="290" width="110" height="50" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
-<text x="575.0" y="311.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Dense+ReLU</text>
-<text x="575.0" y="327.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">128 units</text>
-<text x="575.0" y="284" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=128</text>
-<line x1="630" y1="309" x2="680" y2="309" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="312" x2="680" y2="312" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="315" x2="680" y2="315" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="318" x2="680" y2="318" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="321" x2="680" y2="321" stroke="#27ae60" stroke-width="0.8" opacity="0.3"/>
-<line x1="630" y1="315" x2="680" y2="315" stroke="#27ae60" stroke-width="1.5" opacity="0.5"/>
-<rect x="680" y="290" width="110" height="50" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
-<text x="735.0" y="311.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Value Head</text>
-<text x="735.0" y="327.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">1 scalar</text>
-<text x="735.0" y="284" text-anchor="middle" fill="#999" font-family="monospace" font-size="10">dim=1</text>
-<line x1="790" y1="315" x2="840" y2="315" stroke="#27ae60" stroke-width="1.5" opacity="0.6"/>
-<rect x="840" y="290" width="160" height="50" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
-<text x="920.0" y="311.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">State Value</text>
-<text x="920.0" y="327.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="11">V(s)</text>
-<text x="60" y="400" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Parameter Counts</text>
-<text x="60" y="422" fill="#3a7bd5" font-family="monospace" font-size="12">Actor Trunk: 122,240</text>
-<text x="400" y="422" fill="#3a7bd5" font-family="monospace" font-size="12">Actor Head: 2,322</text>
-<text x="740" y="422" fill="#27ae60" font-family="monospace" font-size="12">Critic Trunk: 122,240</text>
-<text x="60" y="442" fill="#27ae60" font-family="monospace" font-size="12">Critic Head: 129</text>
-<text x="400" y="442" fill="#e67e22" font-family="monospace" font-size="12">Log Std: 4</text>
-<text x="740" y="442" fill="#fff" font-family="monospace" font-size="12">Total: 246,935</text>
-<text x="60" y="480" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Data Flow (Actor)</text>
-<rect x="60" y="495" width="40" height="24" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="80.0" y="511" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="12">91</text>
-<text x="80.0" y="533" text-anchor="middle" fill="#666" font-family="monospace" font-size="10">obs</text>
-<text x="230" y="509" fill="#555" font-family="monospace" font-size="16">&rarr;</text>
-<rect x="260" y="495" width="50" height="24" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="285.0" y="511" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="12">256</text>
-<text x="285.0" y="533" text-anchor="middle" fill="#666" font-family="monospace" font-size="10">h1</text>
-<text x="430" y="509" fill="#555" font-family="monospace" font-size="16">&rarr;</text>
-<rect x="460" y="495" width="50" height="24" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="485.0" y="511" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="12">256</text>
-<text x="485.0" y="533" text-anchor="middle" fill="#666" font-family="monospace" font-size="10">h2</text>
-<text x="630" y="509" fill="#555" font-family="monospace" font-size="16">&rarr;</text>
-<rect x="660" y="495" width="50" height="24" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="685.0" y="511" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="12">128</text>
-<text x="685.0" y="533" text-anchor="middle" fill="#666" font-family="monospace" font-size="10">h3</text>
-<text x="830" y="509" fill="#555" font-family="monospace" font-size="16">&rarr;</text>
-<rect x="860" y="495" width="110" height="24" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="915.0" y="511" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="12">4+3+11=18</text>
-<text x="915.0" y="533" text-anchor="middle" fill="#666" font-family="monospace" font-size="10">head</text>
-<text x="60" y="600" fill="#555" font-family="Segoe UI,system-ui,sans-serif" font-size="11">Initialization: orthogonal (std=sqrt(2) trunk, std=0.01 actor head, std=1.0 critic head)</text>
+<rect width="1200" height="780" fill="#0d0d15" rx="10"/>
+<text x="600" y="30" text-anchor="middle" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="14">KaaN V2.5 — Grouped Encoder + Entity Attention + Fourier Position</text>
+<rect x="30" y="60" width="100" height="40" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
+<text x="80.0" y="76.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Observation</text>
+<text x="80.0" y="90.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">92 dims</text>
+<text x="80.0" y="55" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">input</text>
+<line x1="130" y1="80" x2="170" y2="70" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="170" y="50" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
+<text x="240.0" y="68.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Self State</text>
+<text x="240.0" y="82.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">pos(3)+vel+ang+stats+alive</text>
+<text x="240.0" y="45" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">14 raw</text>
+<rect x="180" y="96" width="120" height="18" rx="3" fill="url(#gFourier)" opacity="0.7"/>
+<text x="240" y="109" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9">Fourier pos(3→27)</text>
+<line x1="310" y1="72" x2="340" y2="72" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="340" y="50" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
+<text x="400.0" y="68.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Self Encoder</text>
+<text x="400.0" y="82.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(38→96)+ReLU</text>
+<text x="400.0" y="45" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">96 dims</text>
+<line x1="130" y1="80" x2="170" y2="140" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="170" y="120" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
+<text x="240.0" y="138.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Inventory</text>
+<text x="240.0" y="152.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">wep_1h+owned+ammo</text>
+<text x="240.0" y="115" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">27 dims</text>
+<line x1="310" y1="142" x2="340" y2="142" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="340" y="120" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
+<text x="400.0" y="138.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Inv Encoder</text>
+<text x="400.0" y="152.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(27→64)+ReLU</text>
+<text x="400.0" y="115" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">64 dims</text>
+<line x1="130" y1="80" x2="170" y2="198" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="170" y="178" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
+<text x="240.0" y="196.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Enemy</text>
+<text x="240.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">vis+rel_xyz+dist+angle</text>
+<text x="240.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">7 dims</text>
+<line x1="310" y1="200" x2="340" y2="200" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="340" y="178" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
+<text x="400.0" y="196.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Enemy Encoder</text>
+<text x="400.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(7→64)+ReLU</text>
+<text x="400.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">64 dims</text>
+<line x1="130" y1="80" x2="170" y2="256" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="170" y="236" width="140" height="44" rx="6" fill="url(#gEntity)" filter="url(#shadow)" opacity="0.9"/>
+<text x="240.0" y="254.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Entities (8x5)</text>
+<text x="240.0" y="268.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">8 × [xyz+active+type]</text>
+<text x="240.0" y="231" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">40 dims</text>
+<line x1="310" y1="258" x2="340" y2="258" stroke="#f39c12" stroke-width="1.5" opacity="0.6"/>
+<rect x="340" y="236" width="120" height="44" rx="6" fill="url(#gEntity)" filter="url(#shadow)" opacity="0.9"/>
+<text x="400.0" y="254.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Entity Attn</text>
+<text x="400.0" y="268.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">shared(5→64)+pool</text>
+<text x="400.0" y="231" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">64 dims</text>
+<rect x="345" y="282" width="110" height="18" rx="3" fill="url(#gEntity)" opacity="0.6"/>
+<text x="400" y="295" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9">softmax attention</text>
+<line x1="130" y1="80" x2="170" y2="326" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
+<rect x="170" y="306" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
+<text x="240.0" y="324.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Game State</text>
+<text x="240.0" y="338.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">frags+enemy+time</text>
+<text x="240.0" y="301" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">3 dims</text>
+<line x1="310" y1="328" x2="460" y2="328" stroke="#666" stroke-width="1.5" opacity="0.6"/>
+<text x="400" y="322" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">passthrough (3)</text>
+<line x1="460" y1="72" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
+<line x1="460" y1="142" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
+<line x1="460" y1="200" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
+<line x1="460" y1="258" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
+<line x1="460" y1="328" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
+<rect x="500" y="178" width="130" height="44" rx="6" fill="url(#gFusion)" filter="url(#shadow)" opacity="0.9"/>
+<text x="565.0" y="196.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Fusion Layer 1</text>
+<text x="565.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(291→256)+ReLU</text>
+<text x="565.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">291→256</text>
+<line x1="565" y1="222" x2="565" y2="234" stroke="#555" stroke-width="1.5" opacity="0.6"/>
+<rect x="500" y="234" width="130" height="44" rx="6" fill="url(#gFusion)" filter="url(#shadow)" opacity="0.9"/>
+<text x="565.0" y="252.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Fusion Layer 2</text>
+<text x="565.0" y="266.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(256→256)+ReLU</text>
+<text x="565.0" y="229" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">256</text>
+<line x1="630" y1="256" x2="660" y2="206" stroke="#3a7bd5" stroke-width="1.5" opacity="0.6"/>
+<rect x="660" y="184" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
+<text x="720.0" y="202.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Actor LSTM</text>
+<text x="720.0" y="216.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">256→256</text>
+<text x="720.0" y="179" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">recurrent</text>
+<line x1="630" y1="256" x2="660" y2="306" stroke="#27ae60" stroke-width="1.5" opacity="0.6"/>
+<rect x="660" y="284" width="120" height="44" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
+<text x="720.0" y="302.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Critic LSTM</text>
+<text x="720.0" y="316.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">256→256</text>
+<text x="720.0" y="279" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">recurrent</text>
+<line x1="780" y1="206" x2="810" y2="206" stroke="#3a7bd5" stroke-width="1.5" opacity="0.6"/>
+<rect x="810" y="184" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
+<text x="870.0" y="202.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Actor Head</text>
+<text x="870.0" y="216.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(256→18)</text>
+<text x="870.0" y="179" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">18 dims</text>
+<line x1="930" y1="195" x2="950" y2="154" stroke="#e67e22" stroke-width="1.5" opacity="0.6"/>
+<line x1="930" y1="206" x2="950" y2="204" stroke="#e67e22" stroke-width="1.5" opacity="0.6"/>
+<line x1="930" y1="217" x2="950" y2="254" stroke="#e67e22" stroke-width="1.5" opacity="0.6"/>
+<rect x="950" y="134" width="160" height="36" rx="6" fill="url(#gHead)" filter="url(#shadow)" opacity="0.9"/>
+<text x="1030.0" y="148.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Continuous (4)</text>
+<text x="1030.0" y="162.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">yaw,pitch,fwd,side</text>
+<rect x="950" y="184" width="160" height="36" rx="6" fill="url(#gHead)" filter="url(#shadow)" opacity="0.9"/>
+<text x="1030.0" y="198.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Binary (3)</text>
+<text x="1030.0" y="212.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">jump,crouch,attack</text>
+<rect x="950" y="234" width="160" height="36" rx="6" fill="url(#gHead)" filter="url(#shadow)" opacity="0.9"/>
+<text x="1030.0" y="248.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Weapon (11)</text>
+<text x="1030.0" y="262.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Categorical</text>
+<text x="1118" y="152" fill="#e67e22" font-family="monospace" font-size="9">+ log_std</text>
+<line x1="780" y1="306" x2="810" y2="306" stroke="#27ae60" stroke-width="1.5" opacity="0.6"/>
+<rect x="810" y="284" width="120" height="44" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
+<text x="870.0" y="302.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Value Head</text>
+<text x="870.0" y="316.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(256→1)</text>
+<text x="870.0" y="279" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">1 dim</text>
+<line x1="930" y1="306" x2="950" y2="306" stroke="#27ae60" stroke-width="1.5" opacity="0.6"/>
+<rect x="950" y="284" width="160" height="36" rx="6" fill="url(#gCritic)" filter="url(#shadow)" opacity="0.9"/>
+<text x="1030.0" y="298.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">State Value</text>
+<text x="1030.0" y="312.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">V(s)</text>
+<rect x="332" y="35" width="303" height="330" rx="8" fill="none" stroke="#444" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="482.5" y="379" text-anchor="middle" fill="#666" font-family="Segoe UI,system-ui,sans-serif" font-size="11" font-style="italic">Shared Encoder (actor + critic gradients)</text>
+<text x="770" y="348" text-anchor="middle" fill="#666" font-family="Segoe UI,system-ui,sans-serif" font-size="11" font-style="italic">Separate heads</text>
+<text x="40" y="520" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Parameter Counts</text>
+<text x="40" y="540" fill="#e74c3c" font-family="monospace" font-size="11">Fourier Enc: 0</text>
+<text x="420" y="540" fill="#3a7bd5" font-family="monospace" font-size="11">Self Enc (38→96): 3,744</text>
+<text x="800" y="540" fill="#3a7bd5" font-family="monospace" font-size="11">Inv Enc (27→64): 1,792</text>
+<text x="40" y="560" fill="#3a7bd5" font-family="monospace" font-size="11">Enemy Enc (7→64): 512</text>
+<text x="420" y="560" fill="#f39c12" font-family="monospace" font-size="11">Entity Attn (5→64): 448</text>
+<text x="800" y="560" fill="#888" font-family="monospace" font-size="11">Fusion (291→256→256): 140,800</text>
+<text x="40" y="580" fill="#3a7bd5" font-family="monospace" font-size="11">Actor LSTM: 526,336</text>
+<text x="420" y="580" fill="#27ae60" font-family="monospace" font-size="11">Critic LSTM: 526,336</text>
+<text x="800" y="580" fill="#3a7bd5" font-family="monospace" font-size="11">Actor Head: 4,626</text>
+<text x="40" y="600" fill="#27ae60" font-family="monospace" font-size="11">Critic Head: 257</text>
+<text x="420" y="600" fill="#e67e22" font-family="monospace" font-size="11">Log Std: 4</text>
+<text x="800" y="600" fill="#fff" font-family="monospace" font-size="11">Total: 1,204,855</text>
+<text x="40" y="655" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Data Flow</text>
+<rect x="40" y="670" width="36" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="58.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">91</text>
+<text x="58.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">obs</text>
+<text x="202" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
+<rect x="220" y="670" width="60" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="250.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">slice</text>
+<text x="250.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">5 groups</text>
+<text x="382" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
+<rect x="400" y="670" width="124" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="462.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">96+64+64+64+3</text>
+<text x="462.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">encoded</text>
+<text x="562" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
+<rect x="580" y="670" width="76" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="618.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">291→256</text>
+<text x="618.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">fusion</text>
+<text x="742" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
+<rect x="760" y="670" width="76" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="798.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">256→256</text>
+<text x="798.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">LSTM</text>
+<text x="922" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
+<rect x="940" y="670" width="92" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="986.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">4+3+11=18</text>
+<text x="986.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">actions</text>
+<text x="40" y="765" fill="#555" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Init: orthogonal (std=sqrt(2) encoders, std=0.01 actor head, std=1.0 critic head) | Fourier: fixed sin/cos L=4 bands | Entity attention: learned query vector</text>
 </svg>
 </div>
 </div>
@@ -361,154 +382,235 @@ tr:hover {
   <td>action_log_std <span class="badge">learned exploration</span></td>
   <td>[4]</td>
   <td class="num">4</td>
-  <td class="num negative">-0.2375</td>
-  <td class="num">0.2626</td>
-  <td class="num negative">-0.5063</td>
-  <td class="num positive">0.0298</td>
+  <td class="num negative">-0.2014</td>
+  <td class="num">0.2601</td>
+  <td class="num negative">-0.4652</td>
+  <td class="num positive">0.0607</td>
 </tr>
 <tr>
-  <td>actor_trunk.0.weight</td>
-  <td>[256, 91]</td>
-  <td class="num">23,296</td>
-  <td class="num ">-0.0007</td>
-  <td class="num">0.1547</td>
-  <td class="num negative">-0.8618</td>
-  <td class="num positive">0.8031</td>
+  <td>self_encoder.0.weight</td>
+  <td>[96, 38]</td>
+  <td class="num">3,648</td>
+  <td class="num ">-0.0031</td>
+  <td class="num">0.1443</td>
+  <td class="num negative">-0.5024</td>
+  <td class="num positive">0.4210</td>
 </tr>
 <tr>
-  <td>actor_trunk.0.bias</td>
+  <td>self_encoder.0.bias</td>
+  <td>[96]</td>
+  <td class="num">96</td>
+  <td class="num ">0.0</td>
+  <td class="num">0.0</td>
+  <td class="num ">0.0</td>
+  <td class="num ">0.0</td>
+</tr>
+<tr>
+  <td>inv_encoder.0.weight</td>
+  <td>[64, 27]</td>
+  <td class="num">1,728</td>
+  <td class="num ">-0.0013</td>
+  <td class="num">0.1768</td>
+  <td class="num negative">-0.5940</td>
+  <td class="num positive">0.6093</td>
+</tr>
+<tr>
+  <td>inv_encoder.0.bias</td>
+  <td>[64]</td>
+  <td class="num">64</td>
+  <td class="num ">0.0</td>
+  <td class="num">0.0</td>
+  <td class="num ">0.0</td>
+  <td class="num ">0.0</td>
+</tr>
+<tr>
+  <td>enemy_encoder.0.weight</td>
+  <td>[64, 7]</td>
+  <td class="num">448</td>
+  <td class="num negative">-0.0108</td>
+  <td class="num">0.1764</td>
+  <td class="num negative">-0.4710</td>
+  <td class="num positive">0.4759</td>
+</tr>
+<tr>
+  <td>enemy_encoder.0.bias</td>
+  <td>[64]</td>
+  <td class="num">64</td>
+  <td class="num ">0.0</td>
+  <td class="num">0.0</td>
+  <td class="num ">0.0</td>
+  <td class="num ">0.0</td>
+</tr>
+<tr>
+  <td>entity_attn.query</td>
+  <td>[64]</td>
+  <td class="num">64</td>
+  <td class="num ">0.0058</td>
+  <td class="num">0.1085</td>
+  <td class="num negative">-0.2588</td>
+  <td class="num positive">0.2346</td>
+</tr>
+<tr>
+  <td>entity_attn.entity_encoder.0.weight</td>
+  <td>[64, 5]</td>
+  <td class="num">320</td>
+  <td class="num ">0.0007</td>
+  <td class="num">0.1768</td>
+  <td class="num negative">-0.5851</td>
+  <td class="num positive">0.4576</td>
+</tr>
+<tr>
+  <td>entity_attn.entity_encoder.0.bias</td>
+  <td>[64]</td>
+  <td class="num">64</td>
+  <td class="num ">0.0</td>
+  <td class="num">0.0</td>
+  <td class="num ">0.0</td>
+  <td class="num ">0.0</td>
+</tr>
+<tr>
+  <td>fusion.0.weight</td>
+  <td>[256, 292]</td>
+  <td class="num">74,752</td>
+  <td class="num ">-0.0001</td>
+  <td class="num">0.0828</td>
+  <td class="num negative">-0.3766</td>
+  <td class="num positive">0.3680</td>
+</tr>
+<tr>
+  <td>fusion.0.bias</td>
   <td>[256]</td>
   <td class="num">256</td>
-  <td class="num ">0.0086</td>
-  <td class="num">0.0221</td>
-  <td class="num negative">-0.0562</td>
-  <td class="num positive">0.0690</td>
+  <td class="num ">0.0</td>
+  <td class="num">0.0</td>
+  <td class="num ">0.0</td>
+  <td class="num ">0.0</td>
 </tr>
 <tr>
-  <td>actor_trunk.2.weight</td>
+  <td>fusion.2.weight</td>
   <td>[256, 256]</td>
   <td class="num">65,536</td>
-  <td class="num ">-0.0037</td>
-  <td class="num">0.1462</td>
-  <td class="num negative">-1.2346</td>
-  <td class="num positive">0.8198</td>
+  <td class="num ">0.0000</td>
+  <td class="num">0.0884</td>
+  <td class="num negative">-0.4079</td>
+  <td class="num positive">0.3418</td>
 </tr>
 <tr>
-  <td>actor_trunk.2.bias</td>
+  <td>fusion.2.bias</td>
   <td>[256]</td>
   <td class="num">256</td>
-  <td class="num positive">0.0217</td>
-  <td class="num">0.0223</td>
-  <td class="num negative">-0.0396</td>
-  <td class="num positive">0.0952</td>
+  <td class="num ">0.0</td>
+  <td class="num">0.0</td>
+  <td class="num ">0.0</td>
+  <td class="num ">0.0</td>
 </tr>
 <tr>
-  <td>actor_trunk.4.weight</td>
-  <td>[128, 256]</td>
-  <td class="num">32,768</td>
-  <td class="num positive">0.0125</td>
-  <td class="num">0.1647</td>
-  <td class="num negative">-1.2604</td>
-  <td class="num positive">0.7892</td>
+  <td>actor_lstm.weight_ih_l0</td>
+  <td>[1024, 256]</td>
+  <td class="num">262,144</td>
+  <td class="num ">-0.0000</td>
+  <td class="num">0.0312</td>
+  <td class="num negative">-0.1334</td>
+  <td class="num positive">0.1385</td>
 </tr>
 <tr>
-  <td>actor_trunk.4.bias</td>
-  <td>[128]</td>
-  <td class="num">128</td>
-  <td class="num ">0.0095</td>
-  <td class="num">0.0451</td>
-  <td class="num negative">-0.0604</td>
-  <td class="num positive">0.1578</td>
+  <td>actor_lstm.weight_hh_l0</td>
+  <td>[1024, 256]</td>
+  <td class="num">262,144</td>
+  <td class="num ">-0.0000</td>
+  <td class="num">0.0312</td>
+  <td class="num negative">-0.1342</td>
+  <td class="num positive">0.1439</td>
+</tr>
+<tr>
+  <td>actor_lstm.bias_ih_l0</td>
+  <td>[1024]</td>
+  <td class="num">1,024</td>
+  <td class="num positive">0.2521</td>
+  <td class="num">0.4329</td>
+  <td class="num negative">-0.0623</td>
+  <td class="num positive">1.0000</td>
+</tr>
+<tr>
+  <td>actor_lstm.bias_hh_l0</td>
+  <td>[1024]</td>
+  <td class="num">1,024</td>
+  <td class="num positive">0.2496</td>
+  <td class="num">0.4344</td>
+  <td class="num negative">-0.0625</td>
+  <td class="num positive">1.0000</td>
 </tr>
 <tr>
   <td>actor.weight</td>
-  <td>[18, 128]</td>
-  <td class="num">2,304</td>
-  <td class="num ">0.0084</td>
-  <td class="num">0.1640</td>
-  <td class="num negative">-1.8567</td>
-  <td class="num positive">1.2580</td>
+  <td>[18, 256]</td>
+  <td class="num">4,608</td>
+  <td class="num ">-0.0000</td>
+  <td class="num">0.0006</td>
+  <td class="num ">-0.0022</td>
+  <td class="num ">0.0021</td>
 </tr>
 <tr>
   <td>actor.bias</td>
   <td>[18]</td>
   <td class="num">18</td>
-  <td class="num negative">-0.9708</td>
-  <td class="num">2.7614</td>
-  <td class="num negative">-10.0002</td>
-  <td class="num positive">1.9837</td>
+  <td class="num negative">-0.9702</td>
+  <td class="num">2.7595</td>
+  <td class="num negative">-9.9967</td>
+  <td class="num positive">1.9710</td>
 </tr>
 <tr>
-  <td>critic_trunk.0.weight</td>
-  <td>[256, 91]</td>
-  <td class="num">23,296</td>
-  <td class="num ">0.0001</td>
-  <td class="num">0.1529</td>
-  <td class="num negative">-0.8504</td>
-  <td class="num positive">0.8199</td>
+  <td>critic_lstm.weight_ih_l0</td>
+  <td>[1024, 256]</td>
+  <td class="num">262,144</td>
+  <td class="num ">0.0000</td>
+  <td class="num">0.0312</td>
+  <td class="num negative">-0.1325</td>
+  <td class="num positive">0.1454</td>
 </tr>
 <tr>
-  <td>critic_trunk.0.bias</td>
-  <td>[256]</td>
-  <td class="num">256</td>
-  <td class="num positive">0.0475</td>
-  <td class="num">0.0545</td>
-  <td class="num negative">-0.1192</td>
-  <td class="num positive">0.1598</td>
+  <td>critic_lstm.weight_hh_l0</td>
+  <td>[1024, 256]</td>
+  <td class="num">262,144</td>
+  <td class="num ">-0.0000</td>
+  <td class="num">0.0312</td>
+  <td class="num negative">-0.1449</td>
+  <td class="num positive">0.1395</td>
 </tr>
 <tr>
-  <td>critic_trunk.2.weight</td>
-  <td>[256, 256]</td>
-  <td class="num">65,536</td>
-  <td class="num ">-0.0067</td>
-  <td class="num">0.1454</td>
-  <td class="num negative">-1.2066</td>
-  <td class="num positive">0.8271</td>
+  <td>critic_lstm.bias_ih_l0</td>
+  <td>[1024]</td>
+  <td class="num">1,024</td>
+  <td class="num positive">0.2523</td>
+  <td class="num">0.4328</td>
+  <td class="num negative">-0.0623</td>
+  <td class="num positive">1.0000</td>
 </tr>
 <tr>
-  <td>critic_trunk.2.bias</td>
-  <td>[256]</td>
-  <td class="num">256</td>
-  <td class="num positive">0.0376</td>
-  <td class="num">0.0555</td>
-  <td class="num negative">-0.0875</td>
-  <td class="num positive">0.1753</td>
-</tr>
-<tr>
-  <td>critic_trunk.4.weight</td>
-  <td>[128, 256]</td>
-  <td class="num">32,768</td>
-  <td class="num positive">0.0110</td>
-  <td class="num">0.1643</td>
-  <td class="num negative">-1.2597</td>
-  <td class="num positive">0.7725</td>
-</tr>
-<tr>
-  <td>critic_trunk.4.bias</td>
-  <td>[128]</td>
-  <td class="num">128</td>
-  <td class="num ">0.0083</td>
-  <td class="num">0.0565</td>
-  <td class="num negative">-0.0812</td>
-  <td class="num positive">0.2073</td>
+  <td>critic_lstm.bias_hh_l0</td>
+  <td>[1024]</td>
+  <td class="num">1,024</td>
+  <td class="num positive">0.2481</td>
+  <td class="num">0.4352</td>
+  <td class="num negative">-0.0624</td>
+  <td class="num positive">1.0000</td>
 </tr>
 <tr>
   <td>critic.weight</td>
-  <td>[1, 128]</td>
-  <td class="num">128</td>
-  <td class="num ">-0.0088</td>
-  <td class="num">0.0780</td>
-  <td class="num negative">-0.2228</td>
-  <td class="num positive">0.1944</td>
+  <td>[1, 256]</td>
+  <td class="num">256</td>
+  <td class="num ">0.0089</td>
+  <td class="num">0.0619</td>
+  <td class="num negative">-0.1972</td>
+  <td class="num positive">0.1593</td>
 </tr>
 <tr>
   <td>critic.bias</td>
   <td>[1]</td>
   <td class="num">1</td>
-  <td class="num negative">-0.0518</td>
+  <td class="num negative">-0.1540</td>
   <td class="num">0.0</td>
-  <td class="num negative">-0.0518</td>
-  <td class="num negative">-0.0518</td>
+  <td class="num negative">-0.1540</td>
+  <td class="num negative">-0.1540</td>
 </tr>
 
 </table>
@@ -526,31 +628,31 @@ tr:hover {
 <tr><th>Action</th><th style="text-align:right">Raw log_std</th><th style="text-align:right">Clamped</th><th style="text-align:right">Std Dev</th><th style="text-align:right">95% Range</th></tr>
 <tr>
   <td>yaw_delta</td>
-  <td class="num">-0.5063</td>
-  <td class="num">-0.5063</td>
-  <td class="num">0.6027</td>
-  <td class="num">1.1813</td>
+  <td class="num">-0.4652</td>
+  <td class="num">-0.4652</td>
+  <td class="num">0.6280</td>
+  <td class="num">1.2308</td>
 </tr>
 <tr>
   <td>pitch_delta</td>
-  <td class="num">-0.4938</td>
-  <td class="num">-0.4938</td>
-  <td class="num">0.6103</td>
-  <td class="num">1.1962</td>
+  <td class="num">-0.4578</td>
+  <td class="num">-0.4578</td>
+  <td class="num">0.6327</td>
+  <td class="num">1.2401</td>
 </tr>
 <tr>
   <td>forward</td>
-  <td class="num">0.0298</td>
-  <td class="num">0.0298</td>
-  <td class="num">1.0303</td>
-  <td class="num">2.0194</td>
+  <td class="num">0.0607</td>
+  <td class="num">0.0607</td>
+  <td class="num">1.0626</td>
+  <td class="num">2.0826</td>
 </tr>
 <tr>
   <td>side</td>
-  <td class="num">0.0203</td>
-  <td class="num">0.0203</td>
-  <td class="num">1.0205</td>
-  <td class="num">2.0002</td>
+  <td class="num">0.0567</td>
+  <td class="num">0.0567</td>
+  <td class="num">1.0583</td>
+  <td class="num">2.0743</td>
 </tr>
 
 </table>
@@ -594,7 +696,7 @@ The 95% range shows the typical deviation from the predicted mean.
 <strong>How to read:</strong> These biases set the initial (before training) probability of each binary action.
 Negative bias = action rarely taken. <code>sigmoid(bias)</code> gives the probability.
 <br>- <code>jump</code> bias of -5.0 = 0.7% initial fire rate
-<br>- <code>crouch</code> bias of -10.0 = 0.0045% (effectively disabled)
+<br>- <code>crouch</code> bias of -10.0 = 0.0046% (effectively disabled)
 <br>- <code>attack</code> bias of -5.0 = 0.67% (prevents rocket suicide)
 </div>
 </div>
@@ -605,13 +707,13 @@ Negative bias = action rarely taken. <code>sigmoid(bias)</code> gives the probab
 <tr><th>Weapon</th><th style="text-align:right">Logit</th><th style="text-align:right">Softmax %</th><th>Distribution</th></tr>
 <tr>
   <td>no switch</td>
-  <td class="num positive">1.984</td>
-  <td class="num">42.0%</td>
-  <td><div class="prob-bar" style="width:84px;background:#2ecc71"></div></td>
+  <td class="num positive">1.971</td>
+  <td class="num">41.7%</td>
+  <td><div class="prob-bar" style="width:83px;background:#2ecc71"></div></td>
 </tr>
 <tr>
   <td>weapon 1</td>
-  <td class="num ">0.004</td>
+  <td class="num ">0.008</td>
   <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
@@ -623,50 +725,50 @@ Negative bias = action rarely taken. <code>sigmoid(bias)</code> gives the probab
 </tr>
 <tr>
   <td>weapon 3</td>
-  <td class="num ">-0.009</td>
-  <td class="num">5.7%</td>
+  <td class="num ">-0.001</td>
+  <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 4</td>
-  <td class="num ">0.003</td>
+  <td class="num ">0.007</td>
   <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 5</td>
-  <td class="num ">0.008</td>
-  <td class="num">5.8%</td>
+  <td class="num positive">0.015</td>
+  <td class="num">5.9%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 6</td>
-  <td class="num ">0.000</td>
+  <td class="num ">-0.001</td>
   <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 7</td>
-  <td class="num ">0.001</td>
+  <td class="num ">0.007</td>
   <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 8</td>
-  <td class="num ">0.005</td>
+  <td class="num ">0.004</td>
   <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 9</td>
-  <td class="num ">0.005</td>
+  <td class="num ">0.001</td>
   <td class="num">5.8%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 <tr>
   <td>weapon 10</td>
-  <td class="num ">0.010</td>
-  <td class="num">5.8%</td>
+  <td class="num ">0.008</td>
+  <td class="num">5.9%</td>
   <td><div class="prob-bar" style="width:11px;background:#555"></div></td>
 </tr>
 
@@ -683,10 +785,10 @@ These are the current (possibly trained) logit values.
 <h3>Continuous Action Head -- Biases</h3>
 <table>
 <tr><th>Output</th><th style="text-align:right">Bias</th><th>Interpretation</th></tr>
-<tr><td>yaw_delta</td><td class="num">-0.0366</td><td>Turn tendency (scaled *10 degrees)</td></tr>
-<tr><td>pitch_delta</td><td class="num">0.0411</td><td>Look up/down tendency (scaled *5 degrees)</td></tr>
-<tr><td>forward</td><td class="num">0.4783</td><td>Forward movement tendency (clipped [-1,1])</td></tr>
-<tr><td>side</td><td class="num">0.0309</td><td>Strafe tendency (clipped [-1,1])</td></tr>
+<tr><td>yaw_delta</td><td class="num">-0.0351</td><td>Turn tendency (scaled *10 degrees)</td></tr>
+<tr><td>pitch_delta</td><td class="num">0.0424</td><td>Look up/down tendency (scaled *5 degrees)</td></tr>
+<tr><td>forward</td><td class="num">0.4761</td><td>Forward movement tendency (clipped [-1,1])</td></tr>
+<tr><td>side</td><td class="num">0.0217</td><td>Strafe tendency (clipped [-1,1])</td></tr>
 </table>
 <div class="explain">
 <strong>How to read:</strong> These biases shift the mean output of each continuous action.
@@ -703,24 +805,24 @@ The actual action is sampled from <code>Normal(mean + bias, std)</code> then cli
 <h2>Actor Head Output Map</h2>
 <table>
 <tr><th>Index</th><th>Name</th><th style="text-align:right">Weight Bias</th><th>Distribution</th><th>Post-processing</th></tr>
-<tr><td>0</td><td>yaw_delta</td><td class="num">-0.0366</td><td>Normal(mean, std)</td><td>* 10.0, clip [-10, 10]</td></tr>
-<tr><td>1</td><td>pitch_delta</td><td class="num">0.0411</td><td>Normal(mean, std)</td><td>* 5.0, clip [-5, 5]</td></tr>
-<tr><td>2</td><td>forward</td><td class="num">0.4783</td><td>Normal(mean, std)</td><td>clip [-1, 1]</td></tr>
-<tr><td>3</td><td>side</td><td class="num">0.0309</td><td>Normal(mean, std)</td><td>clip [-1, 1]</td></tr>
-<tr><td>4</td><td>jump</td><td class="num negative">-5.0050</td><td>Bernoulli(logit)</td><td>0 or 1</td></tr>
-<tr><td>5</td><td>crouch</td><td class="num negative">-10.0002</td><td>Bernoulli(logit)</td><td>0 or 1</td></tr>
-<tr><td>6</td><td>attack</td><td class="num negative">-5.0003</td><td>Bernoulli(logit)</td><td>0 or 1</td></tr>
-<tr><td>7</td><td>no_switch</td><td class="num positive">1.9837</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>8</td><td>weapon_1</td><td class="num ">0.0037</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>9</td><td>weapon_2</td><td class="num ">0.0057</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>10</td><td>weapon_3</td><td class="num ">-0.0087</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>11</td><td>weapon_4</td><td class="num ">0.0033</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>12</td><td>weapon_5</td><td class="num ">0.0076</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>13</td><td>weapon_6</td><td class="num ">0.0004</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>14</td><td>weapon_7</td><td class="num ">0.0013</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>15</td><td>weapon_8</td><td class="num ">0.0054</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>16</td><td>weapon_9</td><td class="num ">0.0046</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
-<tr><td>17</td><td>weapon_10</td><td class="num ">0.0099</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>0</td><td>yaw_delta</td><td class="num">-0.0351</td><td>Normal(mean, std)</td><td>* 10.0, clip [-10, 10]</td></tr>
+<tr><td>1</td><td>pitch_delta</td><td class="num">0.0424</td><td>Normal(mean, std)</td><td>* 5.0, clip [-5, 5]</td></tr>
+<tr><td>2</td><td>forward</td><td class="num">0.4761</td><td>Normal(mean, std)</td><td>clip [-1, 1]</td></tr>
+<tr><td>3</td><td>side</td><td class="num">0.0217</td><td>Normal(mean, std)</td><td>clip [-1, 1]</td></tr>
+<tr><td>4</td><td>jump</td><td class="num negative">-5.0001</td><td>Bernoulli(logit)</td><td>0 or 1</td></tr>
+<tr><td>5</td><td>crouch</td><td class="num negative">-9.9967</td><td>Bernoulli(logit)</td><td>0 or 1</td></tr>
+<tr><td>6</td><td>attack</td><td class="num negative">-4.9962</td><td>Bernoulli(logit)</td><td>0 or 1</td></tr>
+<tr><td>7</td><td>no_switch</td><td class="num positive">1.9710</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>8</td><td>weapon_1</td><td class="num ">0.0077</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>9</td><td>weapon_2</td><td class="num ">0.0061</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>10</td><td>weapon_3</td><td class="num ">-0.0014</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>11</td><td>weapon_4</td><td class="num ">0.0066</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>12</td><td>weapon_5</td><td class="num positive">0.0151</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>13</td><td>weapon_6</td><td class="num ">-0.0009</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>14</td><td>weapon_7</td><td class="num ">0.0072</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>15</td><td>weapon_8</td><td class="num ">0.0039</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>16</td><td>weapon_9</td><td class="num ">0.0015</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
+<tr><td>17</td><td>weapon_10</td><td class="num ">0.0084</td><td>Categorical(logits)</td><td>argmax of 11</td></tr>
 </table>
 </div>
 

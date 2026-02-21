@@ -31,7 +31,7 @@ from q2ai_structs import (
 )
 
 # Observation vector size
-OBS_DIM = 91
+OBS_DIM = 92
 
 # Observation vector layout:
 #  0-2:   origin / 4096                          (self position)
@@ -56,6 +56,7 @@ OBS_DIM = 91
 #  88:    frags / 20
 #  89:    enemy_frags / 20  (TODO: needs scoreboard data)
 #  90:    match_time_frac   (TODO: needs match timer)
+#  91:    damage_dealt / 100 (from STAT_FLASHES, per frame)
 
 
 class Q2AIEnv(gym.Env):
@@ -213,6 +214,7 @@ class Q2AIEnv(gym.Env):
         obs[88] = o.frags / 20.0
         obs[89] = 0.0  # enemy frags (TODO: scoreboard)
         obs[90] = 0.0  # match time fraction (TODO)
+        obs[91] = o.damage_dealt / 100.0  # damage dealt this frame
 
         return obs
 

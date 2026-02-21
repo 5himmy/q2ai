@@ -91,6 +91,9 @@ void AI_Observe_Update(ai_observation_t *obs)
 
     obs->num_entities = count;
 
+    // Combat feedback: damage dealt this frame (from STAT_FLASHES)
+    obs->damage_dealt = ps->stats[STAT_FLASHES];
+
     // Game info
     Q_strlcpy(obs->mapname, cl.mapname, sizeof(obs->mapname));
     obs->serverframe = cl.frame.number;

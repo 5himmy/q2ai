@@ -72,8 +72,19 @@ class RunningNormalizer:
         return {"mean": self.mean.copy(), "var": self.var.copy(), "count": self.count}
 
     def load_state_dict(self, d):
-        self.mean = d["mean"]
-        self.var = d["var"]
+        saved_mean = d["mean"]
+        saved_var = d["var"]
+        cur_dim = self.mean.shape[0]
+        saved_dim = saved_mean.shape[0]
+        if saved_dim != cur_dim:
+            # Obs dim changed — copy what fits, leave new dims at defaults
+            copy_len = min(saved_dim, cur_dim)
+            self.mean[:copy_len] = saved_mean[:copy_len]
+            self.var[:copy_len] = saved_var[:copy_len]
+            print(f"  Normalizer resized: {saved_dim} → {cur_dim} (new dims init fresh)")
+        else:
+            self.mean = saved_mean
+            self.var = saved_var
         self.count = d["count"]
 
 
@@ -414,6 +425,16 @@ def train(args):
                     new_sd[k] = v
             state_dict = new_sd
 
+        # Handle any remaining size mismatches (e.g. fusion layer after obs dim change)
+        model_sd = model.state_dict()
+        keys_to_skip = []
+        for k, v in state_dict.items():
+            if k in model_sd and v.shape != model_sd[k].shape:
+                print(f"    Skipping {k} (shape mismatch: checkpoint {v.shape} vs model {model_sd[k].shape})")
+                keys_to_skip.append(k)
+        for k in keys_to_skip:
+            del state_dict[k]
+
         model.load_state_dict(state_dict, strict=False)
 
         # Load normalizer if present
@@ -421,9 +442,9 @@ def train(args):
             print("  Loaded observation normalizer state")
 
         with torch.no_grad():
-            model.actor.bias[4] = min(model.actor.bias[4].item(), -5.0)
+            model.actor.bias[4] = min(model.actor.bias[4].item(), -2.2)
             model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)
-            model.actor.bias[6] = min(model.actor.bias[6].item(), -5.0)
+            model.actor.bias[6] = max(model.actor.bias[6].item(), -1.0)
             model.action_log_std.data.clamp_(-2.0, 0.5)
             print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
             print(f"  Log_std: {model.action_log_std.data.tolist()}")

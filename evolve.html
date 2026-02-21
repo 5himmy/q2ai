@@ -42,17 +42,17 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 </head>
 <body>
 <h1>KaaN — Evolution Dashboard</h1>
-<p class="subtitle">Last updated: 2026-02-22 00:49:18 | KaaN V2.5 | KaaN: -1 vs Bot: ? | FPS: 125</p>
+<p class="subtitle">Last updated: 2026-02-22 01:41:00 | KaaN: -1 vs Bot: ? | FPS: 125</p>
 
 <div class="section">
 <h2>Current Stats</h2>
 <div class="stats">
-<div class="stat"><div class="value negative">-0.0028</div><div class="label">Step Reward</div></div>
-<div class="stat"><div class="value">0</div><div class="label">Frags (last iter)</div></div>
-<div class="stat"><div class="value">103</div><div class="label">Deaths (last iter)</div></div>
-<div class="stat"><div class="value">6,656,000</div><div class="label">Total Steps</div></div>
-<div class="stat"><div class="value">260</div><div class="label">Iteration</div></div>
-<div class="stat"><div class="value">7.2</div><div class="label">Entropy</div></div>
+<div class="stat"><div class="value negative">-0.0042</div><div class="label">Step Reward</div></div>
+<div class="stat"><div class="value">3</div><div class="label">Frags (last iter)</div></div>
+<div class="stat"><div class="value">348</div><div class="label">Deaths (last iter)</div></div>
+<div class="stat"><div class="value">51,200</div><div class="label">Total Steps</div></div>
+<div class="stat"><div class="value">1</div><div class="label">Iteration</div></div>
+<div class="stat"><div class="value">7.7</div><div class="label">Entropy</div></div>
 </div>
 </div>
 
@@ -68,16 +68,20 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 <div class="card progress"><span class="icon">&#9200;</span><div class="title">Switch weapons</div><div class="threshold">blaster penalty -0.02/frame</div></div>
 <div class="card done"><span class="icon">&#10004;</span><div class="title">Get first frag</div><div class="threshold">frags > 0</div></div>
 <div class="card pending"><span class="icon">&#9744;</span><div class="title">Consistent positive reward</div><div class="threshold">step_reward > 0.01</div></div>
-<div class="card progress"><span class="icon">&#9200;</span><div class="title">Frag/death ratio > 0.5</div><div class="threshold">frags/deaths > 0.5</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Frag/death ratio > 0.5</div><div class="threshold">frags/deaths > 0.5</div></div>
 <div class="card pending"><span class="icon">&#9744;</span><div class="title">Win a match</div><div class="threshold">frags > bot frags</div></div>
+
+</div>
 </div>
 
+<div class="section">
 <h2>Architecture Milestones</h2>
 <div class="cards">
 <div class="card done"><span class="icon">&#10004;</span><div class="title">V1.0 MLP Baseline</div><div class="threshold">91→256→256→128→18 separate A/C</div></div>
 <div class="card done"><span class="icon">&#10004;</span><div class="title">V2.0 LSTM Memory</div><div class="threshold">encoder(91→256) + LSTM(256→256)</div></div>
 <div class="card done"><span class="icon">&#10004;</span><div class="title">V2.5 Grouped Encoder</div><div class="threshold">Fourier pos + entity attention + 2-layer fusion</div></div>
 <div class="card pending"><span class="icon">&#9744;</span><div class="title">V3.0 Self-Play</div><div class="threshold">train against copies of itself</div></div>
+
 </div>
 </div>
 
@@ -90,6 +94,9 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 <h2>Evolution Log</h2>
 <table>
 <tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Observation</th></tr>
+<tr><td>01:41</td><td>1</td><td>51,200</td><td class="negative">-0.0042</td><td>3.0</td><td>348</td><td>7.7</td><td>0.0</td><td>Improving — 348 deaths, 3 frags</td></tr>
+<tr><td>01:18</td><td>40</td><td>512,000</td><td class="negative">-0.0057</td><td>0.0</td><td>49</td><td>7.2</td><td>0.0</td><td>Improving — 49 deaths, 0 frags</td></tr>
+<tr><td>00:59</td><td>305</td><td>7,808,000</td><td class="negative">-0.0038</td><td>2.0</td><td>78</td><td>7.2</td><td>0.0</td><td>Improving — 78 deaths, 2 frags</td></tr>
 <tr><td>00:49</td><td>260</td><td>6,656,000</td><td class="negative">-0.0028</td><td>0.0</td><td>103</td><td>7.2</td><td>0.0</td><td>Improving — 103 deaths, 0 frags</td></tr>
 <tr><td>00:39</td><td>215</td><td>5,504,000</td><td class="negative">-0.0041</td><td>3.0</td><td>74</td><td>7.2</td><td>0.0</td><td>Improving — 74 deaths, 3 frags</td></tr>
 <tr><td>00:29</td><td>170</td><td>4,352,000</td><td class="negative">-0.0038</td><td>3.0</td><td>76</td><td>7.1</td><td>0.0</td><td>Improving — 76 deaths, 3 frags</td></tr>
@@ -112,9 +119,9 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 const canvas = document.getElementById('chart');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
-const labels = ["22:48", "22:48", "22:58", "23:10", "23:20", "23:30", "23:40", "23:59", "00:09", "00:19", "00:29", "00:39", "00:49"];
-const sr = [-0.003, -0.003, -0.0023, 0.0162, 0.0005, -0.0016, -0.0021, 0.0079, -0.0043, -0.0044, -0.0038, -0.0041, -0.0028];
-const frags = [0, 0, 0, 229, 1, 2, 0, 239, 1, 0, 3, 3, 0];
+const labels = ["22:48", "22:48", "22:58", "23:10", "23:20", "23:30", "23:40", "23:59", "00:09", "00:19", "00:29", "00:39", "00:49", "00:59", "01:18", "01:41"];
+const sr = [-0.003, -0.003, -0.0023, 0.0162, 0.0005, -0.0016, -0.0021, 0.0079, -0.0043, -0.0044, -0.0038, -0.0041, -0.0028, -0.0038, -0.0057, -0.0042];
+const frags = [0, 0, 0, 229, 1, 2, 0, 239, 1, 0, 3, 3, 0, 2, 0, 3];
 
 function drawLine(data, color, label, yMin, yMax) {
     if (data.length < 2) return;
