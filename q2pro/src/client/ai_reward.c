@@ -1,24 +1,25 @@
 /*
  * ai_reward.c -- Compute per-frame reward from game state deltas
  *
- * Design: Combat and items are the primary rewards (+1.0 frag, +0.2-0.3 pickup).
- * Per-frame shaping is minimal and directional — no reward for aimless circling.
+ * V1.4: Combat-dense rewards. Damage dealt is the key dense signal.
  *
  *   +1.0  per frag
  *   -1.0  per death
  *   -damage/100 for damage taken
+ *   +damage/100 for damage dealt (via STAT_FLASHES from opentdm)
+ *   +0.15  hit confirmation bonus (any damage dealt this frame)
+ *   +0.02  aim tracking (looking within 10° of enemy)
+ *   +0.05  shooting at visible enemy (reduced from 0.10)
+ *   -0.03  blind-fire penalty (reduced from 0.05)
  *   -0.10  crouch penalty per frame
  *   -0.01  stuck penalty (speed < 20)
  *   -0.15  circling penalty (< 128 units from checkpoint after 30 frames)
- *   -0.01  backward movement penalty
- *   -0.05  blind-fire penalty (mild — encourage shooting experimentation)
- *   +0.10  shooting at visible enemy (strong — learn to aim)
- *   +0.02  aim tracking (looking within 20° of enemy, even without shooting)
+ *   -0.005 backward movement penalty (reduced from 0.01)
  *   -0.02  blaster penalty (has better weapon but won't switch)
- *   +0.2   health/armor pickup
- *   +0.3   weapon pickup
- *   +0.03  approaching enemy when visible
- *   item proximity shaping (approach items)
+ *   +0.1   health/armor pickup (reduced from 0.2)
+ *   +0.15  weapon pickup (reduced from 0.3)
+ *   +0.01  approaching enemy when visible (reduced from 0.03)
+ *   item proximity shaping (reduced 3x)
  */
 
 #include "client.h"
@@ -81,7 +82,14 @@ float AI_Reward_Compute(void)
         reward -= damage / 100.0f;
     }
 
-    // === MOVEMENT SHAPING (no free rewards for circling) ===
+    // Damage dealt reward (from STAT_FLASHES, set by opentdm)
+    int damage_dealt = ps->stats[STAT_FLASHES];
+    if (damage_dealt > 0) {
+        reward += damage_dealt / 100.0f;  // dense damage signal
+        reward += 0.15f;                  // hit confirmation bonus
+    }
+
+    // === MOVEMENT SHAPING (reduced) ===
 
     if (cur_pm_type == PM_NORMAL && cur_health > 0) {
         float vx = cl.predicted_velocity[0];
@@ -93,16 +101,14 @@ float AI_Reward_Compute(void)
             reward -= 0.01f;
         }
 
-        // Backward movement penalty: project velocity onto view direction
-        // If moving backward (away from where you're looking), penalize
+        // Backward movement penalty (reduced)
         float yaw_rad = ps->viewangles[1] * (M_PI / 180.0f);
         float cos_yaw = cosf(yaw_rad);
         float sin_yaw = sinf(yaw_rad);
         float forward_vel = vx * cos_yaw + vy * sin_yaw;
 
         if (forward_vel < -50.0f) {
-            // Moving backward at significant speed
-            reward -= 0.01f;
+            reward -= 0.005f;
         }
 
         // Crouch penalty (harsh — crouching is never good in duel)
@@ -111,14 +117,12 @@ float AI_Reward_Compute(void)
         }
 
         // Circling penalty: every 30 frames (~3s at 10Hz), check displacement
-        // from checkpoint. If less than 128 units away, penalize.
         checkpoint_timer++;
         if (checkpoint_timer >= 30) {
             float dx = cl.predicted_origin[0] - checkpoint_pos[0];
             float dy = cl.predicted_origin[1] - checkpoint_pos[1];
             float displacement = sqrtf(dx*dx + dy*dy);
             if (displacement < 128.0f) {
-                // Circling in place — penalize
                 reward -= 0.15f;
             }
             VectorCopy(cl.predicted_origin, checkpoint_pos);
@@ -126,20 +130,20 @@ float AI_Reward_Compute(void)
         }
     }
 
-    // === ITEM REWARDS ===
+    // === ITEM REWARDS (reduced) ===
 
     // Health/armor pickup bonus
     if (cur_health > prev_health && cur_health > 0 && prev_health > 0) {
-        reward += 0.2f;
+        reward += 0.1f;
     }
     if (cur_armor > prev_armor) {
-        reward += 0.2f;
+        reward += 0.1f;
     }
 
     // Weapon pickup bonus
     for (i = 0; i < MAX_ITEMS; i++) {
         if (cl.inventory[i] > prev_inventory[i]) {
-            reward += 0.3f;
+            reward += 0.15f;
             break;
         }
     }
@@ -166,63 +170,57 @@ float AI_Reward_Compute(void)
         }
     }
 
-    // Aim tracking reward: looking within 20° of enemy (even without shooting)
+    // Aim tracking reward: looking within 10° of enemy (tightened from 20°)
     if (enemy_visible && enemy_dist > 1.0f) {
         float yaw_rad = ps->viewangles[1] * (M_PI / 180.0f);
         float pitch_rad = ps->viewangles[0] * (M_PI / 180.0f);
-        // View direction vector
         float vdir_x = cosf(pitch_rad) * cosf(yaw_rad);
         float vdir_y = cosf(pitch_rad) * sinf(yaw_rad);
         float vdir_z = -sinf(pitch_rad);
-        // Direction to enemy (normalized)
         float inv_dist = 1.0f / enemy_dist;
         float edir_x = enemy_dx * inv_dist;
         float edir_y = enemy_dy * inv_dist;
         float edir_z = enemy_dz * inv_dist;
-        // Dot product = cos(angle between view and enemy)
         float dot = vdir_x * edir_x + vdir_y * edir_y + vdir_z * edir_z;
-        // 20° = cos(20°) ≈ 0.94
-        if (dot > 0.94f) {
-            reward += 0.02f;  // aim tracking: looking at enemy
+        // 10° = cos(10°) ≈ 0.985
+        if (dot > 0.985f) {
+            reward += 0.02f;  // aim tracking: looking precisely at enemy
         }
     }
 
-    // Shooting rewards/penalties
+    // Shooting rewards/penalties (reduced from V1.3)
     if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack) {
         if (!enemy_visible) {
-            reward -= 0.05f;  // blind fire: mild penalty (encourage experimentation)
+            reward -= 0.03f;  // blind fire: mild penalty
         } else {
-            reward += 0.10f;  // aimed fire: strong reward (learn to shoot at enemy)
+            reward += 0.05f;  // aimed fire (reduced — damage dealt is the real reward now)
         }
     }
 
-    // Blaster penalty: if holding blaster (item 7) but owns any better weapon, penalize
-    // Item indices: 7=blaster, 8=SG, 9=SSG, 10=MG, 11=CG, 13=GL, 14=RL, 15=HB, 16=RG
+    // Blaster penalty: if holding blaster (item 7) but owns any better weapon
     if (cur_pm_type == PM_NORMAL && cur_health > 0) {
         int selected = ps->stats[STAT_SELECTED_ITEM];
-        if (selected == 7) {  // holding blaster
-            // Check if we own anything better
+        if (selected == 7) {
             if (cl.inventory[8] || cl.inventory[9] || cl.inventory[10] ||
                 cl.inventory[11] || cl.inventory[13] || cl.inventory[14] ||
                 cl.inventory[15] || cl.inventory[16]) {
-                reward -= 0.02f;  // switch to a real weapon!
+                reward -= 0.02f;
             }
         }
     }
 
-    // Enemy approach reward: when you see the enemy, go fight them
+    // Enemy approach reward (reduced from 0.03)
     if (enemy_visible && prev_enemy_dist < 90000.0f) {
         float approach = prev_enemy_dist - enemy_dist;
-        // +0.03 per frame when approaching, -0.005 when retreating
         if (approach > 0) {
-            reward += 0.03f * fminf(approach / 100.0f, 1.0f);
+            reward += 0.01f * fminf(approach / 100.0f, 1.0f);
         } else {
-            reward -= 0.005f;  // mild retreat penalty (sometimes retreat is smart)
+            reward -= 0.003f;  // mild retreat penalty
         }
     }
     prev_enemy_dist = enemy_visible ? enemy_dist : 99999.0f;
 
-    // === ITEM PROXIMITY (approach nearest visible item) ===
+    // === ITEM PROXIMITY (reduced 3x) ===
 
     if (cur_pm_type == PM_NORMAL && cur_health > 0) {
         float nearest_item = 99999.0f;
@@ -243,7 +241,7 @@ float AI_Reward_Compute(void)
         }
         if (nearest_item < 90000.0f && prev_nearest_item_dist < 90000.0f) {
             float approach = prev_nearest_item_dist - nearest_item;
-            reward += fminf(fmaxf(approach * 0.003f, -0.08f), 0.08f);
+            reward += fminf(fmaxf(approach * 0.001f, -0.03f), 0.03f);
         }
         prev_nearest_item_dist = nearest_item;
     }

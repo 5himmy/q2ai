@@ -1573,6 +1573,8 @@ struct gclient_s {
     unsigned       pickup_msg_framenum;
     unsigned       respawn_framenum;  // can respawn when time > this
 
+    int            damage_given_frame; // damage dealt to enemies this frame (for AI training)
+
     edict_t        *chase_target;   // player we are chasing
     qboolean       update_chase;    // need to update chase info?
     int            chase_mode;

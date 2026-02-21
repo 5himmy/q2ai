@@ -65,13 +65,19 @@ void P_DamageFeedback(edict_t *player) {
     client = player->client;
 
     // flash the backgrounds behind the status numbers
-    client->ps.stats[STAT_FLASHES] = 0;
-    if (client->damage_blood) {
-        client->ps.stats[STAT_FLASHES] |= 1;
-    }
-    if (client->damage_armor && !(player->flags & FL_GODMODE)
-            && (client->invincible_framenum <= level.framenum)) {
-        client->ps.stats[STAT_FLASHES] |= 2;
+    // When AI training (g_spawn_bots), repurpose STAT_FLASHES for damage dealt
+    if (g_spawn_bots->value) {
+        client->ps.stats[STAT_FLASHES] = client->damage_given_frame;
+        client->damage_given_frame = 0;
+    } else {
+        client->ps.stats[STAT_FLASHES] = 0;
+        if (client->damage_blood) {
+            client->ps.stats[STAT_FLASHES] |= 1;
+        }
+        if (client->damage_armor && !(player->flags & FL_GODMODE)
+                && (client->invincible_framenum <= level.framenum)) {
+            client->ps.stats[STAT_FLASHES] |= 2;
+        }
     }
 
     // total points of damage shot at the player this frame

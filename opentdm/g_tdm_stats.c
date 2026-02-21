@@ -191,6 +191,7 @@ void TDM_Damage(edict_t *ent, edict_t *victim, edict_t *inflictor, int damage) {
         return;
     }
 
+    ent->client->damage_given_frame += damage;
     ent->client->resp.teamplayerinfo->damage_dealt[weapon] += damage;
 
     // count quad damage
