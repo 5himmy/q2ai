@@ -155,10 +155,10 @@ void AI_Bridge_ExchangeFrame(void)
         // Force attack button to trigger respawn immediately
         q2ai_shared_action.attack = 1;
     } else {
-        // Check for death
+        // On death: auto-respawn but do NOT end episode.
+        // Continuous training: reward signal (-1.0 death) teaches KaaN
+        // without the overhead of episode resets.
         if (pm == PM_DEAD || pm == PM_GIB) {
-            shm_state->episode_done = 1;
-            // Force attack to respawn ASAP (like a player pressing fire)
             q2ai_shared_action.attack = 1;
         }
     }

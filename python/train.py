@@ -16,6 +16,7 @@ import argparse
 import csv
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import numpy as np
@@ -221,19 +222,32 @@ def train(args):
 
     start_time = time.time()
 
-    # Reset all envs
+    # Thread pool for parallel semaphore waits (I/O-bound, not CPU-bound)
+    executor = ThreadPoolExecutor(max_workers=num_envs)
+
+    # Reset all envs (parallel)
     print(f"Resetting {num_envs} environment(s)...")
-    obs_list = []
-    for env in envs:
-        obs, info = env.reset()
-        obs_list.append(obs)
+    obs_list = list(executor.map(lambda env: env.reset()[0], envs))
     print(f"Ready! Starting training loop ({num_envs}x parallel).\n")
 
     for iteration in range(1, args.num_rollouts + 1):
         buffer.reset()
         rollout_rewards = []
 
-        # Collect rollout — vectorized: batch inference + pipelined I/O
+        # Drain stale semaphore posts from PPO update gap (C clients kept posting)
+        for env in envs:
+            env._drain_semaphore(env._sem_obs)
+
+        # Send one round of no-ops and wait for fresh obs to resync
+        noop = {"yaw_delta": 0, "pitch_delta": 0, "forwardmove": 0,
+                "sidemove": 0, "jump": 0, "crouch": 0, "attack": 0, "weapon": 0}
+        for env in envs:
+            env.send_action(noop)
+        fresh = list(executor.map(lambda env: env.recv_obs(), envs))
+        for e in range(num_envs):
+            obs_list[e] = fresh[e][0]
+
+        # Collect rollout — batch inference + threaded parallel I/O
         for t in range(steps_per_env):
             # 1. Batch inference: one GPU forward pass for all envs
             actions, log_probs, values = model.act_batch(obs_list)
@@ -242,9 +256,13 @@ def train(args):
             for e in range(num_envs):
                 envs[e].send_action(actions[e])
 
-            # 3. Receive all observations (parallel wait — all servers tick simultaneously)
+            # 3. Receive all observations in parallel (threaded semaphore waits)
+            results = list(executor.map(lambda env: env.recv_obs(), envs))
+
+            # 4. Process results and reset terminated envs
+            reset_envs = []
             for e in range(num_envs):
-                next_obs, reward, terminated, truncated, info = envs[e].recv_obs()
+                next_obs, reward, terminated, truncated, info = results[e]
                 rollout_rewards.append(reward)
 
                 buffer.add(obs_list[e], actions[e], log_probs[e], reward, values[e], terminated)
@@ -263,7 +281,13 @@ def train(args):
                     ep_reward[e] = 0.0
                     ep_frags[e] = 0
                     ep_length[e] = 0
-                    obs_list[e], _ = envs[e].reset()
+                    reset_envs.append(e)
+
+            # 5. Reset terminated envs in parallel
+            if reset_envs:
+                reset_results = list(executor.map(lambda e: (e, envs[e].reset()), reset_envs))
+                for e, (obs, _info) in reset_results:
+                    obs_list[e] = obs
 
         # Bootstrap value (use first env's obs as representative)
         with torch.no_grad():
@@ -325,6 +349,7 @@ def train(args):
     print(f"Total: {total_timesteps} steps, {total_episodes} episodes, {time.time() - start_time:.0f}s")
 
     log_file.close()
+    executor.shutdown(wait=False)
     for env in envs:
         env.close()
 
