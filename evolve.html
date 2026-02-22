@@ -42,17 +42,17 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 </head>
 <body>
 <h1>KaaN — Evolution Dashboard</h1>
-<p class="subtitle">Last updated: 2026-02-22 05:05:10 | KaaN: -2 vs Bot: ? | FPS: 125</p>
+<p class="subtitle">Last updated: 2026-02-22 05:15:10 | KaaN: -3 vs Bot: ? | FPS: 125</p>
 
 <div class="section">
 <h2>Current Stats</h2>
 <div class="stats">
-<div class="stat"><div class="value positive">0.0658</div><div class="label">Step Reward</div></div>
-<div class="stat"><div class="value">7</div><div class="label">Frags (last iter)</div></div>
-<div class="stat"><div class="value">226</div><div class="label">Deaths (last iter)</div></div>
-<div class="stat"><div class="value">1,280,000</div><div class="label">Total Steps</div></div>
-<div class="stat"><div class="value">40</div><div class="label">Iteration</div></div>
-<div class="stat"><div class="value">8.2</div><div class="label">Entropy</div></div>
+<div class="stat"><div class="value positive">0.0703</div><div class="label">Step Reward</div></div>
+<div class="stat"><div class="value">9</div><div class="label">Frags (last iter)</div></div>
+<div class="stat"><div class="value">199</div><div class="label">Deaths (last iter)</div></div>
+<div class="stat"><div class="value">2,560,000</div><div class="label">Total Steps</div></div>
+<div class="stat"><div class="value">80</div><div class="label">Iteration</div></div>
+<div class="stat"><div class="value">7.9</div><div class="label">Entropy</div></div>
 </div>
 </div>
 
@@ -94,6 +94,7 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 <h2>Evolution Log</h2>
 <table>
 <tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Observation</th></tr>
+<tr><td>05:15</td><td>80</td><td>2,560,000</td><td class="positive">0.0703</td><td>9.0</td><td>199</td><td>7.9</td><td>0.0</td><td>Combat engaged! 9 frags, K/D=0.05</td></tr>
 <tr><td>05:05</td><td>40</td><td>1,280,000</td><td class="positive">0.0658</td><td>7.0</td><td>226</td><td>8.2</td><td>0.0</td><td>Combat engaged! 7 frags, K/D=0.03</td></tr>
 <tr><td>04:44</td><td>40</td><td>1,280,000</td><td class="positive">0.0148</td><td>11.0</td><td>205</td><td>8.0</td><td>0.0</td><td>Combat engaged! 11 frags, K/D=0.05</td></tr>
 <tr><td>03:40</td><td>20</td><td>640,000</td><td class="positive">0.0046</td><td>5.0</td><td>431</td><td>8.2</td><td>0.0</td><td>Near break-even — 431 deaths, 5 frags</td></tr>
@@ -128,9 +129,9 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 const canvas = document.getElementById('chart');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
-const labels = ["22:48", "22:48", "22:58", "23:10", "23:20", "23:30", "23:40", "23:59", "00:09", "00:19", "00:29", "00:39", "00:49", "00:59", "01:18", "01:41", "01:51", "02:15", "02:36", "03:04", "03:14", "03:24", "03:40", "04:44", "05:05"];
-const sr = [-0.003, -0.003, -0.0023, 0.0162, 0.0005, -0.0016, -0.0021, 0.0079, -0.0043, -0.0044, -0.0038, -0.0041, -0.0028, -0.0038, -0.0057, -0.0042, 0.0143, 0.0043, 0.0051, 0.0039, 0.0068, 0.0101, 0.0046, 0.0148, 0.0658];
-const frags = [0, 0, 0, 229, 1, 2, 0, 239, 1, 0, 3, 3, 0, 2, 0, 3, 13, 25, 3, 8, 1, 1, 5, 11, 7];
+const labels = ["22:48", "22:48", "22:58", "23:10", "23:20", "23:30", "23:40", "23:59", "00:09", "00:19", "00:29", "00:39", "00:49", "00:59", "01:18", "01:41", "01:51", "02:15", "02:36", "03:04", "03:14", "03:24", "03:40", "04:44", "05:05", "05:15"];
+const sr = [-0.003, -0.003, -0.0023, 0.0162, 0.0005, -0.0016, -0.0021, 0.0079, -0.0043, -0.0044, -0.0038, -0.0041, -0.0028, -0.0038, -0.0057, -0.0042, 0.0143, 0.0043, 0.0051, 0.0039, 0.0068, 0.0101, 0.0046, 0.0148, 0.0658, 0.0703];
+const frags = [0, 0, 0, 229, 1, 2, 0, 239, 1, 0, 3, 3, 0, 2, 0, 3, 13, 25, 3, 8, 1, 1, 5, 11, 7, 9];
 
 function drawLine(data, color, label, yMin, yMax) {
     if (data.length < 2) return;

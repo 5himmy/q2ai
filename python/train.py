@@ -349,7 +349,7 @@ def train(args):
     num_chunks_per_env = steps_per_env // seq_len
     total_chunks = num_envs * num_chunks_per_env
 
-    print(f"Q2AI Training — KaaN[V2.6-WallRays+Inventory]")
+    print(f"Q2AI Training — KaaN[V2.7-SimplifiedRewards]")
     print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {steps_per_env}, "
           f"Seq: {seq_len}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
     print(f"Chunks per env: {num_chunks_per_env}, Total chunks: {total_chunks}, "
@@ -469,9 +469,9 @@ def train(args):
     log_file = open(log_path, "w", newline="")
     log_writer = csv.writer(log_file)
     log_writer.writerow([
-        "iteration", "timesteps", "episodes", "mean_reward", "mean_frags",
-        "mean_length", "policy_loss", "value_loss", "entropy",
-        "clip_fraction", "approx_kl", "elapsed_s",
+        "iteration", "timesteps", "episodes", "mean_reward", "step_reward",
+        "frags", "deaths", "mean_length", "policy_loss", "value_loss",
+        "entropy", "clip_fraction", "approx_kl", "elapsed_s",
     ])
 
     # Per-env episode tracking
@@ -635,7 +635,8 @@ def train(args):
 
             log_writer.writerow([
                 iteration, total_timesteps, total_episodes,
-                f"{mean_r:.4f}", f"{mean_f:.1f}", f"{mean_l:.0f}",
+                f"{mean_r:.4f}", f"{step_r:.4f}",
+                rollout_frags, rollout_deaths, f"{mean_l:.0f}",
                 f"{metrics['policy_loss']:.6f}", f"{metrics['value_loss']:.6f}",
                 f"{metrics['entropy']:.4f}", f"{metrics['clip_fraction']:.4f}",
                 f"{metrics['approx_kl']:.6f}", f"{elapsed:.1f}",
@@ -674,17 +675,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Q2AI PPO Training (LSTM)")
     parser.add_argument("--instance", type=int, default=0, help="Starting instance ID")
     parser.add_argument("--num-envs", type=int, default=1, help="Number of parallel environments")
-    parser.add_argument("--lr", type=float, default=3e-5, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument("--clip-eps", type=float, default=0.2, help="PPO clip epsilon")
-    parser.add_argument("--entropy-coef", type=float, default=0.003, help="Entropy bonus coefficient")
-    parser.add_argument("--value-coef", type=float, default=0.5, help="Value loss coefficient")
+    parser.add_argument("--entropy-coef", type=float, default=0.01, help="Entropy bonus coefficient")
+    parser.add_argument("--value-coef", type=float, default=1.0, help="Value loss coefficient")
     parser.add_argument("--max-grad-norm", type=float, default=0.5, help="Max gradient norm")
     parser.add_argument("--rollout-len", type=int, default=512, help="Steps per rollout per env")
     parser.add_argument("--seq-len", type=int, default=32, help="LSTM sequence length (TBPTT chunk size)")
     parser.add_argument("--batch-chunks", type=int, default=16, help="Number of sequence chunks per mini-batch")
-    parser.add_argument("--epochs", type=int, default=2, help="PPO epochs per rollout")
+    parser.add_argument("--epochs", type=int, default=4, help="PPO epochs per rollout")
     parser.add_argument("--target-kl", type=float, default=0.05, help="KL early stopping threshold (0=disabled)")
     parser.add_argument("--num-rollouts", type=int, default=100000, help="Total rollout iterations")
     parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Checkpoint directory")
