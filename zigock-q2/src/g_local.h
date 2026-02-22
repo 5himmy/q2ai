@@ -572,6 +572,8 @@ extern  cvar_t  *maplist;
 extern  cvar_t  *botlist;
 extern  cvar_t  *autospawn;
 extern  cvar_t  *zigmode;
+extern  cvar_t  *g_bot_nomove;
+extern  cvar_t  *g_bot_noshoot;
 extern  float   spawncycle;
 //ponpoko
 

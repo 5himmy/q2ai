@@ -90,6 +90,8 @@ void Load_BotInfo()
 
 	//botlist value
 	botlist = gi.cvar("botlist", "default", CVAR_SERVERINFO | CVAR_LATCH);
+	g_bot_nomove = gi.cvar("g_bot_nomove", "0", 0);
+	g_bot_noshoot = gi.cvar("g_bot_noshoot", "0", 0);
 	gamepath = gi.cvar("game", "", 0);
 
 	//load info
@@ -100,7 +102,7 @@ void Load_BotInfo()
 		return;
 	}
 	else {
-		fseek(fp, 0, SEEK_SET);  //æ“ª‚ÖˆÚ“®
+		fseek(fp, 0, SEEK_SET);  //ï¿½æ“ªï¿½ÖˆÚ“ï¿½
 		while (1) {
 			if (fgets(Buff, sizeof(Buff), fp) == NULL) {
 				goto MESS_NOTFOUND;
@@ -127,7 +129,7 @@ MESS_NOTFOUND:
 		//if(botlist->string == NULL) strcpy(MessageSection,BOTLIST_SECTION_DM);
 		//else
 		sprintf(MessageSection, "[%s]", botlist->string);
-		fseek(fp, 0, SEEK_SET);  //æ“ª‚ÖˆÚ“®
+		fseek(fp, 0, SEEK_SET);  //ï¿½æ“ªï¿½ÖˆÚ“ï¿½
 		while (1) {
 			if (fgets(Buff, sizeof(Buff), fp) == NULL) {
 				MessageSection[0] = 0;
@@ -140,7 +142,7 @@ MESS_NOTFOUND:
 		//when not found
 		if (MessageSection[0] == 0) {
 			strcpy(MessageSection, BOTLIST_SECTION_DM);
-			fseek(fp, 0, SEEK_SET);  //æ“ª‚ÖˆÚ“®
+			fseek(fp, 0, SEEK_SET);  //ï¿½æ“ªï¿½ÖˆÚ“ï¿½
 			while (1) {
 				if (fgets(Buff, sizeof(Buff), fp) == NULL) {
 					goto BOTLIST_NOTFOUND;
@@ -266,7 +268,7 @@ BOTLIST_NOTFOUND:
 //
 //----------------------------------------------------------------
 
-int Get_NumOfPlayer(void)  //Bot‚àŠÜ‚ß‚½player‚Ì”
+int Get_NumOfPlayer(void)  //Botï¿½ï¿½ï¿½Ü‚ß‚ï¿½playerï¿½Ìï¿½
 {
 	int i, j;
 	edict_t *ent;
@@ -355,11 +357,27 @@ void Bot_Think(edict_t *self)
 		}
 	}
 	else {
-//gi.cprintf(NULL,PRINT_HIGH,"BTHK2: z=%f vz=%f link=%d mlink=%d dead=%d\n", self->s.origin[2], self->velocity[2], self->linkcount, self->monsterinfo.linkcount, self->deadflag); // BOTDBG
-		Bots_Move_NORM(self);
-//gi.cprintf(NULL,PRINT_HIGH,"BTHK3: z=%f vz=%f link=%d mlink=%d dead=%d\n", self->s.origin[2], self->velocity[2], self->linkcount, self->monsterinfo.linkcount, self->deadflag); // BOTDBG
-		if (!self->inuse) {
-			return;    //removed botself
+		if (g_bot_nomove && g_bot_nomove->value) {
+			vec3_t saved_origin, saved_velocity;
+			VectorCopy(self->s.origin, saved_origin);
+			VectorCopy(self->velocity, saved_velocity);
+
+			Bots_Move_NORM(self);
+			if (!self->inuse) {
+				return;
+			}
+
+			VectorCopy(saved_origin, self->s.origin);
+			VectorCopy(saved_velocity, self->velocity);
+		} else {
+			Bots_Move_NORM(self);
+			if (!self->inuse) {
+				return;
+			}
+		}
+
+		if (g_bot_noshoot && g_bot_noshoot->value) {
+			self->client->buttons &= ~BUTTON_ATTACK;
 		}
 
 		client = self->client;
@@ -543,8 +561,8 @@ void PutBotInServer(edict_t *ent)
 	ent->pain_debounce_time = level.time;
 	ent->targetname = NULL;
 
-	ent->moveinfo.speed = 1.0;  //ƒWƒƒƒ“ƒv’†‚ÌˆÚ“®—¦‚É‚Â‚¢‚Ä’Ç‰Á
-	ent->moveinfo.state = GETTER;   //CTFƒXƒe[ƒ^ƒX‰Šú‰»
+	ent->moveinfo.speed = 1.0;  //ï¿½Wï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½ÌˆÚ“ï¿½ï¿½ï¿½ï¿½É‚Â‚ï¿½ï¿½Ä’Ç‰ï¿½
+	ent->moveinfo.state = GETTER;   //CTFï¿½Xï¿½eï¿½[ï¿½^ï¿½Xï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 	ent->prethink = NULL;
 	ent->think = Bot_Think;
@@ -972,7 +990,7 @@ void ZigockClientJoin(edict_t  *ent, int zclass)
 {
 	PMenu_Close(ent);
 
-	ent->moveinfo.sound_end = CLS_ALPHA;    //PutClient‚Ì‘O‚ÉƒNƒ‰ƒXŒˆ’è
+	ent->moveinfo.sound_end = CLS_ALPHA;    //PutClientï¿½Ì‘Oï¿½ÉƒNï¿½ï¿½ï¿½Xï¿½ï¿½ï¿½ï¿½
 
 	ent->svflags &= ~SVF_NOCLIENT;
 	PutClientInServer(ent);
@@ -1113,7 +1131,7 @@ void AirStrike_Think(edict_t *ent)
 		}
 
 		if (target->classname[0] == 'p') {
-			//ctf ‚È‚çƒ`[ƒ€ƒƒCƒg–³Ž‹
+			//ctf ï¿½È‚ï¿½`ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½Cï¿½gï¿½ï¿½ï¿½ï¿½
 			if (!ctf->value || (ctf->value && ent->owner->client->resp.ctf_team != target->client->resp.ctf_team)) {
 				rs_trace = gi.trace(point, NULL, NULL, target->s.origin, ent, CONTENTS_SOLID | CONTENTS_WINDOW | CONTENTS_LAVA | CONTENTS_SLIME);
 
@@ -1159,7 +1177,7 @@ void Cmd_AirStrike(edict_t *ent)
 	    }*/
 
 	VectorCopy(rs_trace.endpos, strpoint);
-	strpoint[2] -= 16;  //‚¿‚å‚Á‚Æ‚¾‚¯‰º‚Ö‚¸‚ç‚·
+	strpoint[2] -= 16;  //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö‚ï¿½ï¿½ç‚·
 
 	f = ent->s.angles[YAW] * M_PI * 2 / 360;
 	tts[0] = cos(f) * (-8190) ;

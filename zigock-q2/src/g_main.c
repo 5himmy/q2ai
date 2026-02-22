@@ -59,6 +59,8 @@ cvar_t  *maplist;
 cvar_t  *botlist;
 cvar_t  *autospawn;
 cvar_t  *zigmode;
+cvar_t  *g_bot_nomove;
+cvar_t  *g_bot_noshoot;
 float   spawncycle;
 float   ctfjob_update;
 //ponpoko
@@ -78,8 +80,8 @@ void ReadLevel(char *filename);
 void InitGame(void);
 void G_RunFrame(void);
 
-void SetBotFlag1(edict_t *ent); //ƒ`[ƒ€1‚ÌŠø
-void SetBotFlag2(edict_t *ent);  //ƒ`[ƒ€2‚ÌŠø
+void SetBotFlag1(edict_t *ent); //ï¿½`ï¿½[ï¿½ï¿½1ï¿½ÌŠï¿½
+void SetBotFlag2(edict_t *ent);  //ï¿½`ï¿½[ï¿½ï¿½2ï¿½ÌŠï¿½
 
 //===================================================================
 
@@ -560,7 +562,7 @@ void G_RunFrame(void)
 				ctfjob_update = level.time + FRAMETIME * 2;
 			}
 		}
-//////////Šø‚ÌƒXƒRƒAƒ`ƒFƒbƒN
+//////////ï¿½ï¿½ï¿½ÌƒXï¿½Rï¿½Aï¿½`ï¿½Fï¿½bï¿½N
 		if (zigmode->value == 1) {
 			if (next_fragadd < level.time) {
 				if (i > 0 && i <= maxclients->value && g_edicts[i].client) {
@@ -572,7 +574,7 @@ void G_RunFrame(void)
 							g_edicts[i].client->resp.score += 1;
 						}
 						else {
-							//Šø‚ğ‚Á‚Ä‚é‚Æƒtƒ‰ƒbƒO‚ğ‘«‚·
+							//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä‚ï¿½Æƒtï¿½ï¿½ï¿½bï¿½Oï¿½ğ‘«‚ï¿½
 							for (j = 1 ; j <= maxclients->value ; j++) {
 								if (g_edicts[j].inuse) {
 									if (OnSameTeam(&g_edicts[i], &g_edicts[j])) {

@@ -1774,6 +1774,8 @@ struct edict_s {
 
 // Bot functions
 extern cvar_t *g_spawn_bots;
+extern cvar_t *g_bot_nomove;
+extern cvar_t *g_bot_noshoot;
 extern cvar_t *g_bot_skill;
 extern cvar_t *g_bot_config;
 void Bot_InitDefaults(void);

@@ -354,6 +354,8 @@ void InitGame(void) {
 
     // bot spawning
     g_spawn_bots = gi.cvar("g_spawn_bots", "0", 0);
+    g_bot_nomove = gi.cvar("g_bot_nomove", "0", 0);
+    g_bot_noshoot = gi.cvar("g_bot_noshoot", "0", 0);
 
     // bot skill level (1-10, uses original 3ZB2 presets)
     g_bot_skill = gi.cvar("g_bot_skill", "5", 0);

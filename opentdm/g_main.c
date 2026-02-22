@@ -168,6 +168,8 @@ cvar_t *g_respawn_mega;
 cvar_t *sv_mvd_enable;
 
 cvar_t *g_spawn_bots;
+cvar_t *g_bot_nomove;
+cvar_t *g_bot_noshoot;
 
 void SpawnEntities(const char *mapname, const char *entities,
         const char *spawnpoint);
