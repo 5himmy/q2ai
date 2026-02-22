@@ -58,7 +58,7 @@ class AdaptiveTuner:
     """Adjusts entropy_coef, LR, reward_scale, and bot skill during training."""
 
     def __init__(self, initial_entropy_coef, initial_lr, initial_reward_scale,
-                 num_rollouts, num_envs, target_entropy=7.0, initial_bot_skill=0):
+                 num_rollouts, num_envs, target_entropy=5.0, initial_bot_skill=0):
         self.entropy_coef = initial_entropy_coef
         self.initial_lr = initial_lr
         self.lr = initial_lr
@@ -77,7 +77,7 @@ class AdaptiveTuner:
         # 1. Adaptive entropy coefficient
         ent = metrics["entropy"]
         if ent > self.target_entropy:
-            self.entropy_coef *= 0.995
+            self.entropy_coef *= 0.99
         elif ent < self.target_entropy - 1.0:
             self.entropy_coef *= 1.002
         self.entropy_coef = max(0.0005, min(0.02, self.entropy_coef))

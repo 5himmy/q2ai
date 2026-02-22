@@ -59,6 +59,7 @@ typedef struct {
     float       enemy_angles[3];    // view angles
     int32_t     enemy_visible;      // 1 if enemy is in current frame
     int32_t     enemy_client_num;   // client number of enemy, -1 if none
+    float       enemy_last_seen_age;  // milliseconds since last seen/heard, 0 if visible now
 
     // Combat feedback
     int32_t     damage_dealt;       // from STAT_FLASHES, resets each frame
@@ -128,6 +129,9 @@ float AI_Reward_Compute(void);
 // Episode lifecycle management
 void AI_Control_Init(void);
 void AI_Control_Frame(void);
+
+// Sound-based enemy tracking (called from S_StartSound stub)
+void AI_OnEnemySound(const vec3_t origin);
 
 // Demo extraction (behavior cloning)
 void AI_Demo_Init(void);

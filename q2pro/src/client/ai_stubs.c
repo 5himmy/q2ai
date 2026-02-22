@@ -6,6 +6,7 @@
  */
 
 #include "client.h"
+#include "ai_bridge.h"
 
 // ============================================================
 // Renderer stubs (refresh/refresh.h)
@@ -171,6 +172,13 @@ void S_Shutdown(void)
 void S_StartSound(const vec3_t origin, int entnum, int entchannel,
                   qhandle_t sfx, float fvol, float attenuation, float timeofs)
 {
+    // Track sounds from enemy players for AI observation
+    if (entnum > 0 && entnum != cl.clientNum + 1 && entnum <= cl.maxclients) {
+        if (origin)
+            AI_OnEnemySound(origin);
+        else
+            AI_OnEnemySound(cl_entities[entnum].current.origin);
+    }
 }
 
 void S_ParseStartSound(void)

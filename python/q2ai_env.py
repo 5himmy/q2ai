@@ -178,11 +178,19 @@ class Q2AIEnv(gym.Env):
         for i, (inv_idx, max_val) in enumerate(zip(AMMO_INDICES, AMMO_MAX)):
             obs[35 + i] = o.inventory[inv_idx] / max_val
 
-        # Enemy player (explicit tracking from C side)
+        # Enemy player (explicit tracking from C side, with last-known persistence)
         self_origin = np.array([o.origin[0], o.origin[1], o.origin[2]])
+        enemy_pos = np.array([o.enemy_origin[0], o.enemy_origin[1], o.enemy_origin[2]])
+        has_enemy_pos = enemy_pos[0] != 0.0 or enemy_pos[1] != 0.0 or enemy_pos[2] != 0.0
+
         if o.enemy_visible:
-            obs[41] = 1.0  # enemy_visible
-            enemy_pos = np.array([o.enemy_origin[0], o.enemy_origin[1], o.enemy_origin[2]])
+            obs[41] = 1.0  # visible now
+        elif has_enemy_pos:
+            # Last-known position: freshness decays over 10 seconds
+            age_s = o.enemy_last_seen_age / 1000.0
+            obs[41] = max(0.0, 1.0 - age_s / 10.0)
+
+        if has_enemy_pos:
             rel_enemy = enemy_pos - self_origin
             obs[42] = rel_enemy[0] / 4096.0
             obs[43] = rel_enemy[1] / 4096.0

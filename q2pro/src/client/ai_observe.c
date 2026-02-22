@@ -12,6 +12,18 @@
 
 #define AI_RAY_LENGTH 1024.0f
 
+// Persistent enemy tracking across frames (survives loss of visibility)
+static vec3_t   s_last_enemy_origin;
+static int      s_last_enemy_servertime;
+static bool     s_enemy_ever_seen;
+
+void AI_OnEnemySound(const vec3_t origin)
+{
+    VectorCopy(origin, s_last_enemy_origin);
+    s_last_enemy_servertime = cl.servertime;
+    s_enemy_ever_seen = true;
+}
+
 static uint8_t AI_ClassifyEntity(int ent_number, int effects)
 {
     // Players: entity numbers 1..maxclients
@@ -94,6 +106,19 @@ void AI_Observe_Update(ai_observation_t *obs)
     }
 
     obs->num_entities = count;
+
+    // Persist last-known enemy position
+    if (obs->enemy_visible) {
+        // Enemy is visible now — update statics
+        VectorCopy(obs->enemy_origin, s_last_enemy_origin);
+        s_last_enemy_servertime = cl.servertime;
+        s_enemy_ever_seen = true;
+        obs->enemy_last_seen_age = 0.0f;
+    } else if (s_enemy_ever_seen) {
+        // Enemy not visible but was seen/heard before — use last known position
+        VectorCopy(s_last_enemy_origin, obs->enemy_origin);
+        obs->enemy_last_seen_age = (float)(cl.servertime - s_last_enemy_servertime);
+    }
 
     // Combat feedback: damage dealt this frame (from STAT_FLASHES)
     obs->damage_dealt = ps->stats[STAT_FLASHES];
