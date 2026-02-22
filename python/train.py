@@ -449,6 +449,7 @@ def train(args):
         initial_reward_scale=REWARD_SCALE,
         num_rollouts=args.num_rollouts,
         num_envs=num_envs,
+        initial_bot_skill=args.bot_skill,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -795,4 +796,5 @@ if __name__ == "__main__":
     parser.add_argument("--save-interval", type=int, default=100, help="Save every N iterations")
     parser.add_argument("--timeout", type=float, default=5.0, help="Observation timeout (seconds)")
     parser.add_argument("--resume", type=str, default=None, help="Resume from checkpoint")
+    parser.add_argument("--bot-skill", type=int, default=1, help="Initial bot skill level (0-10)")
     train(parser.parse_args())

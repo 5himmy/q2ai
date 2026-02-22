@@ -168,11 +168,19 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Removed hardcoded bias overrides on resume (let the network learn)
   - CSV now logs step_reward, frags, deaths per iteration
 
+#### Completed (V2.8):
+- [x] V2.8 Adaptive Hyperparameter Tuning — `AdaptiveTuner` class in `train.py`
+  - Entropy coef: targets 7.0, decays ×0.995 when above, grows ×1.002 when below, clamped [0.0005, 0.02]
+  - LR decay: linear from initial LR to 0 over total iterations (standard PPO practice)
+  - Reward scale: adjusts based on value_loss magnitude (shrink if >10, grow if <0.1), clamped [1.0, 20.0]
+  - Bot skill curriculum: rolling K/D over last 10 iterations, graduate at K/D>0.5, demote at K/D<0.05
+  - Sends `g_bot_skill N` via rcon to all servers on skill change
+  - All tuner values logged to CSV and console (`[TUNER]` lines)
+
 #### In Progress:
-- [ ] V2.7 training: 250 instances on hop, bot skill 1, evaluating simplified rewards
+- [ ] V2.8 training: 250 instances on hop, adaptive tuning active
 
 #### Next:
-- [ ] Curriculum learning: graduate to skill 2 when K/D > 0.5
 - [ ] Multi-client per server (4 KaaN per server, cut 250 servers to 63)
 - [ ] Add back shaping rewards one at a time once basic combat learned
 
@@ -182,7 +190,7 @@ Server:27913 + KaaN[instance=3]  ─┘
 - [ ] Weapon selection strategy
 - [ ] Movement optimization (strafe jumping, rocket jumping)
 - [ ] Opponent modeling
-- [ ] Curriculum learning: increase bot skill as AI improves
+- [x] Curriculum learning: automatic bot skill via AdaptiveTuner (V2.8)
 
 ### Phase 8 — Human Demo Learning
 
@@ -234,7 +242,7 @@ AI generates per-frame actions converted to real player inputs (`usercmd_t`):
 | `q2ai_env.py` | Gymnasium environment (89-dim obs, hybrid actions) |
 | `q2ai_structs.py` | ctypes mirrors of `ai_bridge.h` |
 | `model.py` | ActorCritic network (PPO + behavior cloning, LSTM planned) |
-| `train.py` | PPO training loop (multi-instance, GPU) |
+| `train.py` | PPO training loop (multi-instance, GPU, adaptive tuning) |
 | `imitate.py` | Behavior cloning from demo data |
 | `monitor.py` | HTML evolution dashboard (auto-starts with training) |
 | `test_shm_read.py` | Shared memory test script |
@@ -339,3 +347,4 @@ cd python
 - **Server setup:** OpenTDM 1v1 mode, `q2ai_team b` since team A has a scripted bot.
 - **Demo extraction:** Both MVD and DM2 formats supported. Velocity computed from position deltas (10Hz). Auto-quit on demo end.
 - **GPU:** CUDA with batched inference — `act_batch()` stacks N observations into one tensor for a single GPU forward pass instead of N separate calls. Model weights stay on GPU, only final actions transferred to CPU.
+- **Adaptive tuning:** `AdaptiveTuner` in `train.py` adjusts 4 hyperparameters each iteration: entropy coef (target-based), LR (linear decay), reward scale (value-loss feedback), bot skill (K/D curriculum via rcon). Logged as `[TUNER]` lines and 4 extra CSV columns.
