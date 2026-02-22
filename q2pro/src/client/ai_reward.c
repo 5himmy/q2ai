@@ -204,6 +204,25 @@ float AI_Reward_Compute(void)
         reward += 0.05f + 0.25f * aim_quality;  // +0.05 to +0.30
     }
 
+    // Self-splash penalty: shooting when too close to a wall causes self-damage
+    // Cast a short forward ray to check wall proximity
+    if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack && cl.bsp && cl.bsp->nodes) {
+        float yaw_r = ps->viewangles[1] * (M_PI / 180.0f);
+        float pitch_r = ps->viewangles[0] * (M_PI / 180.0f);
+        vec3_t ray_start, ray_end;
+        trace_t tr;
+        VectorCopy(cl.predicted_origin, ray_start);
+        ray_start[2] += 22.0f;
+        ray_end[0] = ray_start[0] + cosf(pitch_r) * cosf(yaw_r) * 120.0f;
+        ray_end[1] = ray_start[1] + cosf(pitch_r) * sinf(yaw_r) * 120.0f;
+        ray_end[2] = ray_start[2] - sinf(pitch_r) * 120.0f;
+        CM_BoxTrace(&tr, ray_start, ray_end, vec3_origin, vec3_origin,
+                    cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
+        if (tr.fraction < 1.0f) {
+            reward -= 0.15f;  // wall within 120u (rocket splash radius) in aim direction
+        }
+    }
+
     // Blaster penalty: if holding blaster (item 7) but owns any better weapon
     if (cur_pm_type == PM_NORMAL && cur_health > 0) {
         int selected = ps->stats[STAT_SELECTED_ITEM];
