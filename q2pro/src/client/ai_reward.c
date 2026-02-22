@@ -191,17 +191,17 @@ float AI_Reward_Compute(void)
     // === COMBAT ENGAGEMENT ===
 
     // Graduated aim tracking reward (uses aim_dot computed earlier)
-    // 45° (~0.707): +0.01, 20° (~0.94): +0.03, 10° (~0.985): +0.05
+    // 45° (~0.707): +0.05, 20° (~0.94): +0.13, 10° (~0.985): +0.20
     if (aim_dot > 0.707f) {
         float aim_quality = (aim_dot - 0.707f) / (1.0f - 0.707f);  // 0→1
-        reward += 0.01f + 0.04f * aim_quality;  // +0.01 to +0.05
+        reward += 0.05f + 0.15f * aim_quality;  // +0.05 to +0.20
     }
 
     // Shooting reward — only reward aimed shots, no penalty for spam
     // Let the bot learn "shooting at enemy = good" without fearing the trigger
     if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack && enemy_in_fov) {
         float aim_quality = (aim_dot - 0.707f) / (1.0f - 0.707f);
-        reward += 0.02f + 0.08f * aim_quality;  // +0.02 to +0.10
+        reward += 0.05f + 0.25f * aim_quality;  // +0.05 to +0.30
     }
 
     // Blaster penalty: if holding blaster (item 7) but owns any better weapon

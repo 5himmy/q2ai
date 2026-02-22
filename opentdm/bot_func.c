@@ -716,13 +716,13 @@ void PutBotInServer(edict_t *ent)
     ent->svflags = SVF_MONSTER;
 
     {
-        qboolean success = moveEntUntilNotStartsolid(ent, MASK_BOTSOLIDX, 0, 0, 1, 16);
+        qboolean success = moveEntUntilNotStartsolid(ent, MASK_BOTSOLIDX, 0, 0, 1, 48);
         if (!success) {
             vec3_t forward;
 
             VectorCopy(ent->s.old_origin, ent->s.origin);
             AngleVectors(ent->s.angles, forward, NULL, NULL);
-            success = moveEntUntilNotStartsolid(ent, MASK_BOTSOLIDX, forward[0], forward[1], 1, 16);
+            success = moveEntUntilNotStartsolid(ent, MASK_BOTSOLIDX, forward[0], forward[1], 1, 48);
 
             if (!success) {
                 VectorCopy(ent->s.old_origin, ent->s.origin);
