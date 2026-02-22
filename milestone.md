@@ -24,7 +24,7 @@
 
 **Item Respawn:** Items respawn 20-30 seconds after pickup. Controlling when items respawn (timing) is the core strategic skill.
 
-**Training Map: 2box6** — Tiny box map, no items or weapons. Forces constant close-range combat. KaaN spawns with all weapons + 100 armor. Scripted bot (skill 3) also in the box.
+**Training Map: hop** — Small map with frequent encounters. KaaN spawns with all weapons + 100 armor. Scripted bot (skill 1, curriculum learning) also on the map.
 
 **Target Map: q2dm1 "The Edge"** — Classic duel map. Two main levels connected by ramps, lifts, and a teleporter. No red armor on this map. Key positions: RL room, mega health area, yellow armor spots. (Used after KaaN learns combat basics on 2box6.)
 
@@ -43,87 +43,73 @@
 
 ---
 
-## Reward Rules V1.4 (what KaaN learns from)
+## Reward Rules V2.0 (what KaaN learns from)
 
-These are the signals that shape KaaN's behavior during PPO training:
+Simplified to core combat + critical anti-suicide signals. Fewer signals = lower value loss = better learning.
 
 | Signal | Reward | Purpose |
 |--------|--------|---------|
 | Kill enemy | +1.0 | Primary objective |
 | Die | -1.0 | Primary penalty |
 | Take damage | -damage/100 | Learn to dodge |
-| **Deal damage** | **+damage/100** | Dense combat signal (via STAT_FLASHES) |
-| **Hit confirmation** | **+0.15** | Bonus for landing any hit |
-| **Aim at enemy (within 10deg)** | +0.02 | Precise aim tracking (tightened from 20°) |
-| Shoot at visible enemy | +0.05 | Aimed fire (reduced — damage dealt is real reward) |
-| Shoot blindly (no enemy) | -0.03 | Mild penalty |
-| Get stuck (speed < 20) | -0.01 | Don't stand still |
-| Circling (< 128 units in 3s) | -0.15 | Must explore, not circle in place |
-| Move backward | -0.005 | Mild backward penalty |
-| Crouch (per frame) | -0.10 | Crouching is never good in duel |
+| Deal damage | +damage/100 | Dense combat signal (via STAT_FLASHES, FOV-gated) |
+| Self-splash penalty | -0.15 | Don't shoot rockets into walls at close range |
 | Using blaster with better weapon | -0.02 | Switch to a real weapon! |
-| Approach visible enemy | +0.01 | Go fight (reduced — damage is better signal) |
-| Retreat from enemy | -0.003 | Mild retreat penalty |
-| Pick up health/armor | +0.1 | Learn to collect resources (reduced) |
-| Pick up weapon | +0.15 | Learn to arm yourself (reduced) |
-| Approach nearest item | +0.001/unit | Subtle pull toward items (reduced 3x) |
+| Get stuck (speed < 20) | -0.01 | Don't stand still |
+| Pick up health/armor | +0.1 | Learn to collect resources |
+| Pick up weapon | +0.15 | Learn to arm yourself |
 
-**V1.4 changes (bold above):** Added damage dealt reward (+damage/100) via opentdm's existing damage tracking exposed through STAT_FLASHES. Added hit confirmation bonus (+0.15). Tightened aim cone from 20° to 10°. Halved all non-combat shaping rewards (pickups, approach, item proximity) to prevent reward farming.
+**V2.0 changes:** Stripped from 15 signals to 9. Removed aim tracking, precision bonus, shooting reward, approach reward, item proximity, backward penalty, crouch penalty, circling penalty. Value loss dropped from ~47 to ~0.4 immediately — the critic can now actually learn returns.
 
-**Design philosophy:** Damage dealt is the missing bridge between "shooting at enemy" and "getting a frag". Every rocket that connects gives immediate reward, not just the killing blow. Non-combat shaping reduced so the policy optimizes for actual combat effectiveness.
+**Design philosophy:** Let the core objective (frags, deaths, damage) drive learning. Only add anti-suicide signals for critical bad behaviors (rocket self-splash, blaster hoarding). Aim tracking and movement shaping can be added back once KaaN learns basic combat.
 
 ---
 
 ## Training Infrastructure
 
-- **KaaN V1.4** — 200 parallel instances on 12-core/16GB/RTX 3070
-- **Map:** 2box6 (tiny box, constant combat, 70-135 deaths per iteration)
-- **Separate Actor/Critic networks** — no shared trunk (V1.2 fix: value gradients were destroying policy)
-- **Architecture:** MLP (256-256-128) → LSTM planned for V2.0 (temporal memory for enemy tracking, item timing)
+- **KaaN V2.7** — 250 parallel instances on 12-core/16GB/RTX 3070
+- **Map:** hop (small map, frequent encounters)
+- **Architecture:** V2.6 Grouped Encoder + Entity Attention + Fourier Position + LSTM (1.2M params)
+- **Separate Actor/Critic LSTMs** — no shared trunk (V1.2 fix: value gradients were destroying policy)
 - **Continuous episodes** — no resets on death. Auto-respawn in C, continuous observation stream.
-- **~2,000 steps/sec** throughput, ~14s per iteration (25,600 steps/iter at 200 instances)
+- **~1,300 steps/sec** throughput, ~50s per iteration (64,000 steps/iter at 250 instances)
 - **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt)
 - **Reward scaling** — 5x multiplier (REWARD_SCALE = 5.0)
 - **Observation normalization** — running mean/std (Welford's algorithm), clips to [-5, 5]
-- **PPO hyperparameters:** lr=3e-5, epochs=2, batch_size=512, target_kl=0.05, entropy_coef=0.003
-- **KL stability:** avg_kl=0.005-0.006, target_kl early stopping per mini-batch
+- **PPO hyperparameters:** lr=1e-4, epochs=4, value_coef=1.0, target_kl=0.05, entropy_coef=0.005
+- **Rollout:** 256 steps/env, seq_len=32 (LSTM chunks), batch_chunks=16
+- **KL stability:** avg_kl=0.005-0.007, target_kl early stopping per mini-batch
+- **Curriculum learning:** bot skill 1 (graduating to higher skills as K/D improves)
 - **Damage dealt tracking** — opentdm exposes per-frame damage via STAT_FLASHES (self-damage filtered)
 - Batched GPU inference, threaded parallel I/O, semaphore resync between PPO updates
 - Real frag/death tracking from game state (not episode counters)
+- CSV logs: step_reward, frags, deaths per iteration (not just episode-level)
 
 ---
 
 ## Stage 1: Newborn (current stage)
 
-KaaN trains in 2box6 — a tiny box map with constant combat. He spawns with all weapons and faces a skill-3 scripted bot. The dense combat environment lets him experience 30-70 deaths per iteration, providing strong learning signal.
+KaaN trains on hop — a small map with frequent encounters. He faces a skill-1 scripted bot (curriculum learning — starting easy). V2.7 uses simplified rewards (9 signals, down from 15) so the value function can actually learn.
 
-**Current observations (V1.4, 2box6, 200 instances):**
-- step_reward: -0.004 to -0.007 (adjusting to V1.4 reward structure)
-- 69-135 deaths per iteration (constant combat, 200 instances)
-- Occasional frags (2 at iter 10, still mostly accidental)
-- KL: 0.005-0.006 (rock stable)
-- Entropy: 7.06-7.08 (healthy exploration)
-- Damage dealt reward now provides dense learning signal between "shooting at enemy" and "getting a frag"
-- Training stable at lr=3e-5, separate actor/critic networks
+**Current observations (V2.7, hop, 250 instances, bot skill 1):**
+- step_reward: -0.006 to -0.004 (improving with simplified rewards)
+- 120-170 deaths per iteration (250 instances)
+- 9-12 frags per iteration (consistent combat engagement)
+- Value loss: 0.3-0.5 (was 47 with old rewards — massive improvement)
+- KL: 0.006-0.007 (stable)
+- Entropy: 8.3-8.6
+- Deaths trending down: 235 → 126 over 30 iterations
 
 **Signs of progress:**
-- Doesn't stand still (moves forward most of the time)
-- Stopped crouching (penalty worked)
-- Deaths trending down slightly (135 → 85-95 range)
-- Occasional kills (0-6 frags per iteration across 200 instances)
+- Gets frags consistently (9-12 per iteration)
+- Deaths decreasing over training
+- Value function actually learning (loss 0.3 vs 47 before)
+- Doesn't self-kill with rockets as often (self-splash penalty working)
+- Switches away from blaster
 
-**Metrics:** step_reward > 0.01, frags > 5 per iteration, frag/death ratio > 0.1
+**Metrics:** step_reward > 0.01, frags > 20 per iteration, frag/death ratio > 0.1
 
-**Next architectural upgrade — LSTM Memory (V2.0):**
-Without memory, KaaN plays every frame like it's his first. He can't:
-- Track enemy behind walls (forgets they exist instantly)
-- Lead projectile weapons (needs velocity history to predict)
-- Time item respawns (mega health every 20-30s)
-- Learn movement patterns (strafe jumping requires frame-to-frame coordination)
-
-V2.0 adds LSTM layer: obs → encoder (256) → LSTM (256 hidden) → actor/critic heads.
-Hidden state persisted across frames, reset on death. PPO training uses truncated BPTT
-with sequence chunks (T=32-64). This is mandatory for competitive Quake 2.
+**Architecture:** V2.6 Grouped Encoder + Entity Attention + Fourier Position + LSTM (1.2M params). Separate actor/critic LSTMs with truncated BPTT (seq_len=32).
 
 ---
 

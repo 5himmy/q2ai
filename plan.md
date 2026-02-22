@@ -73,21 +73,15 @@ Server:27913 + KaaN[instance=3]  ─┘
 
 ### Phase 5 — Reward System + Episode Management: COMPLETE
 
-- `ai_reward.c`: Frame-over-frame deltas — combat/items are primary, no free shaping
+- `ai_reward.c`: V2.0 simplified — core combat + critical anti-suicide only
   - +1.0 per frag, -1.0 per death
   - -damage/100 for damage taken
-  - -0.01 stuck penalty (speed < 20), -0.01 backward movement penalty
-  - -0.15 circling penalty (< 128 units displacement in 30 frames)
-  - -0.10 crouch penalty per frame
-  - +0.2 per health/armor pickup, +0.3 per weapon pickup
   - +damage/100 for damage dealt (FOV-gated: only when enemy within 45°)
-  - +0.15 hit confirmation, +0.20 precision bonus (scales with aim accuracy)
-  - +0.05~0.20 graduated aim tracking (4x boosted, scales with dot product to enemy)
-  - +0.05~0.30 shooting at enemy in FOV (3x boosted, scales with aim precision)
+  - -0.15 self-splash penalty (shooting wall within 120u)
   - -0.02 blaster penalty (has better weapon but won't switch)
-  - +0.01 approaching visible enemy, -0.005 retreating from enemy
-  - Item proximity reward (+0.003/unit approached, capped ±0.08)
-  - No blind-fire penalty, no survival bonus (prevents circle-running exploit)
+  - -0.01 stuck penalty (speed < 20)
+  - +0.1 per health/armor pickup, +0.15 per weapon pickup
+  - Stripped from 15 signals to 9 (value loss 47→0.4)
 - `ai_control.c`: Auto-connect, auto-join team, auto-respawn, auto-ready, name override
 - Full episode loop: connect → join team → ready → play → die → respawn → repeat
 - Cvars: `q2ai_team`, `q2ai_name`, `q2ai_autoconnect`, `q2ai_server`, `q2ai_instance`
@@ -142,10 +136,9 @@ Server:27913 + KaaN[instance=3]  ─┘
 - [x] `python/monitor.py` — HTML evolution dashboard (auto-starts with training)
   - Kanban-style milestone cards, training charts, server rcon queries
   - Generates `evolve.html`, saves history to `evolve_data.json`
-- [x] Entropy fix: log_std clamped [-2.0, 0.5], entropy_coef 0.01 → 0.003
-  - Prevented entropy runaway (was 16.4 and climbing, now plateaus ~10)
-- [x] Reward scaling: 10x multiplier so value function learns faster
-  - step_r was ~-0.1 (too small), now ~-1.0 (meaningful gradient signal)
+- [x] Entropy fix: log_std clamped [-2.0, 0.5], entropy_coef tuned through 0.003→0.01→0.005
+  - Prevented entropy runaway (was 16.4 and climbing, now stable ~8.3-8.6)
+- [x] Reward scaling: 5x multiplier so value function learns faster
 - [x] Observation normalization: running mean/std (Welford's algorithm)
   - Adaptive normalization on top of fixed scaling, clips to [-5, 5]
 - [x] Batch size: 128 → 512 (reduces gradient updates from 1,200 to 300 per iteration)
@@ -163,16 +156,25 @@ Server:27913 + KaaN[instance=3]  ─┘
   - 18-ray CM_BoxTrace (8 eye + floor + ceiling + 8 knee), OBS_DIM 92→110
   - Server-side svc_inventory push on spawn, fixed off-by-one index mapping
   - V1.5 precision rewards: FOV-gated damage, graduated aim, attack bias 0.5
-  - V1.6 boosted aim rewards: aim tracking 4x (+0.05~0.20), aimed shots 3x (+0.05~0.30)
   - Bot spawn fix: startsolid nudge range 16→48 for hop map
   - Training map: hop (smaller than 2box6, more frequent encounters)
+- [x] V2.7 Reward Simplification + Curriculum Learning
+  - Stripped rewards from 15 signals to 9 (value loss 47→0.4)
+  - Removed: aim tracking, precision bonus, shooting reward, approach, item proximity, backward, crouch, circling
+  - Kept: frag, death, damage dealt/taken, self-splash, blaster, stuck, pickups
+  - Curriculum: bot skill 3→1, graduate as K/D improves
+  - Hyperparams: lr 3e-5→1e-4, epochs 2→4, value_coef 0.5→1.0, entropy_coef→0.005
+  - Rollout 128→256 (more combat events per rollout for sparse rewards)
+  - Removed hardcoded bias overrides on resume (let the network learn)
+  - CSV now logs step_reward, frags, deaths per iteration
 
 #### In Progress:
-- [ ] V2.6 training: 250 instances on 2box6, evaluating wall awareness + inventory
+- [ ] V2.7 training: 250 instances on hop, bot skill 1, evaluating simplified rewards
 
 #### Next:
+- [ ] Curriculum learning: graduate to skill 2 when K/D > 0.5
 - [ ] Multi-client per server (4 KaaN per server, cut 250 servers to 63)
-- [ ] Curriculum learning: increase bot skill as AI improves
+- [ ] Add back shaping rewards one at a time once basic combat learned
 
 ### Phase 7 — 1v1 Mastery
 

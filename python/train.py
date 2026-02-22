@@ -349,7 +349,7 @@ def train(args):
     num_chunks_per_env = steps_per_env // seq_len
     total_chunks = num_envs * num_chunks_per_env
 
-    print(f"Q2AI Training — KaaN[V2.7-SimplifiedRewards]")
+    print(f"Q2AI Training — KaaN[V2.7-CleanRewards+Curriculum]")
     print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {steps_per_env}, "
           f"Seq: {seq_len}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
     print(f"Chunks per env: {num_chunks_per_env}, Total chunks: {total_chunks}, "
@@ -441,15 +441,8 @@ def train(args):
         if isinstance(ckpt, dict) and "normalizer" in ckpt:
             print("  Loaded observation normalizer state")
 
-        with torch.no_grad():
-            model.actor.bias[4] = min(model.actor.bias[4].item(), -2.2)
-            model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)
-            model.actor.bias[6] = max(model.actor.bias[6].item(), 0.5)
-            # Reset attack weight row so bias dominates (learned weights were suppressing fire)
-            model.actor.weight.data[6].mul_(0.1)
-            model.action_log_std.data.clamp_(-2.0, 0.5)
-            print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
-            print(f"  Log_std: {model.action_log_std.data.tolist()}")
+        print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
+        print(f"  Log_std: {model.action_log_std.data.tolist()}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
 
@@ -679,10 +672,10 @@ if __name__ == "__main__":
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
     parser.add_argument("--lam", type=float, default=0.95, help="GAE lambda")
     parser.add_argument("--clip-eps", type=float, default=0.2, help="PPO clip epsilon")
-    parser.add_argument("--entropy-coef", type=float, default=0.01, help="Entropy bonus coefficient")
+    parser.add_argument("--entropy-coef", type=float, default=0.005, help="Entropy bonus coefficient")
     parser.add_argument("--value-coef", type=float, default=1.0, help="Value loss coefficient")
     parser.add_argument("--max-grad-norm", type=float, default=0.5, help="Max gradient norm")
-    parser.add_argument("--rollout-len", type=int, default=512, help="Steps per rollout per env")
+    parser.add_argument("--rollout-len", type=int, default=256, help="Steps per rollout per env")
     parser.add_argument("--seq-len", type=int, default=32, help="LSTM sequence length (TBPTT chunk size)")
     parser.add_argument("--batch-chunks", type=int, default=16, help="Number of sequence chunks per mini-batch")
     parser.add_argument("--epochs", type=int, default=4, help="PPO epochs per rollout")
