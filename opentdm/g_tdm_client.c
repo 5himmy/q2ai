@@ -1268,6 +1268,12 @@ void TDM_SetInitialItems(edict_t *ent) {
         }
         break;
     }
+
+    // Push inventory to client immediately (headless AI clients need this)
+    gi.WriteByte(5);  // svc_inventory
+    for (i = 0; i < MAX_ITEMS; i++)
+        gi.WriteShort(client->inventory[i]);
+    gi.unicast(ent, true);
 }
 
 /**

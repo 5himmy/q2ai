@@ -80,11 +80,14 @@ Server:27913 + KaaN[instance=3]  ─┘
   - -0.15 circling penalty (< 128 units displacement in 30 frames)
   - -0.10 crouch penalty per frame
   - +0.2 per health/armor pickup, +0.3 per weapon pickup
-  - -0.15 blind-fire penalty, +0.02 aimed fire reward
+  - +damage/100 for damage dealt (FOV-gated: only when enemy within 45°)
+  - +0.15 hit confirmation, +0.20 precision bonus (scales with aim accuracy)
+  - +0.01~0.05 graduated aim tracking (scales with dot product to enemy)
+  - +0.02~0.10 shooting at enemy in FOV (scales with aim precision)
   - -0.02 blaster penalty (has better weapon but won't switch)
   - +0.01 approaching visible enemy, -0.005 retreating from enemy
   - Item proximity reward (+0.003/unit approached, capped ±0.08)
-  - No survival bonus, no undirected movement reward (prevents circle-running exploit)
+  - No blind-fire penalty, no survival bonus (prevents circle-running exploit)
 - `ai_control.c`: Auto-connect, auto-join team, auto-respawn, auto-ready, name override
 - Full episode loop: connect → join team → ready → play → die → respawn → repeat
 - Cvars: `q2ai_team`, `q2ai_name`, `q2ai_autoconnect`, `q2ai_server`, `q2ai_instance`
@@ -106,9 +109,11 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Semaphore drain + no-op resync between rollout iterations
   - Batched GPU inference via `act_batch()` (1 forward pass per step, not N)
   - Pipelined env I/O: send all actions (non-blocking) → recv all obs (parallel)
-- [x] `python/q2ai_env.py` — Gymnasium environment (89-dim observation vector)
+- [x] `python/q2ai_env.py` — Gymnasium environment (110-dim observation vector)
   - Normalized observations: position/4096, velocity/400, sin/cos angles, etc.
   - 8 nearest entities with relative position and type
+  - 18 wall raycasts for spatial awareness (eye + knee height + floor/ceiling)
+  - Inventory: 10 weapon ownership flags + 6 normalized ammo counts
   - Split step() into send_action() (non-blocking) + recv_obs() (blocking wait)
 - [x] `python/q2ai_structs.py` — ctypes mirrors of C structs
 - [x] Behavior cloning from demo playback (`ai_demo.c` + `python/imitate.py`)
@@ -131,6 +136,9 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Eliminates Python-side reset overhead entirely (0 episodes in logs)
 - [x] CPU optimization: `Sys_Sleep(2)` in headless main loop, `cl_maxfps 30`
 - [x] Reward shaping V1.4 — damage dealt via STAT_FLASHES, hit confirmation, tighter aim, reduced shaping
+- [x] Reward shaping V1.5 — FOV-gated damage, graduated aim precision, no blind-fire penalty, attack bias 0.5
+- [x] Wall raycasts — 18 rays (8 eye-height + floor + ceiling + 8 knee-height) via CM_BoxTrace
+- [x] Inventory fix — server-side svc_inventory push on spawn, fixed off-by-one index mapping
 - [x] `python/monitor.py` — HTML evolution dashboard (auto-starts with training)
   - Kanban-style milestone cards, training charts, server rcon queries
   - Generates `evolve.html`, saves history to `evolve_data.json`
@@ -143,24 +151,24 @@ Server:27913 + KaaN[instance=3]  ─┘
 - [x] Batch size: 128 → 512 (reduces gradient updates from 1,200 to 300 per iteration)
   - Faster iterations (26s vs 33s), more stable gradients
 
-#### In Progress:
-- [ ] V1.4 training: damage dealt reward, 200 instances on 2box6
+#### Completed (V2.0–V2.6):
+- [x] V2.0 LSTM Memory — separate actor/critic LSTMs (256 hidden), sequence-based PPO
+  - Truncated BPTT with 32-step chunks, hidden state carried between chunks
+  - `act_batch()` carries per-env LSTM hidden states between frames
+  - Hidden states reset on death
+- [x] V2.5 Grouped Encoder — Fourier position encoding, entity attention, grouped encoders
+  - Self/Inventory/Enemy/Entity groups with separate encoders
+  - 2-layer fusion (292→256→256), ~1.2M params
+- [x] V2.6 Wall Raycasts + Inventory — spatial awareness and correct inventory
+  - 18-ray CM_BoxTrace (8 eye + floor + ceiling + 8 knee), OBS_DIM 92→110
+  - Server-side svc_inventory push on spawn, fixed off-by-one index mapping
+  - V1.5 precision rewards: FOV-gated damage, graduated aim, attack bias 0.5
 
-#### Next — LSTM Memory (V2.0):
-- [ ] Add LSTM layer to both actor and critic networks
-  - Architecture: obs → encoder (256) → LSTM (256 hidden) → actor/critic heads
-  - LSTM gives temporal memory: track enemy behind walls, lead projectiles, time items
-  - Hidden state (h, c) persisted across frames, reset on death/respawn
-- [ ] Modify `train.py` for sequence-based PPO
-  - Collect rollouts as sequences (not shuffled individual steps)
-  - Truncated BPTT: split rollouts into T-length chunks (T=32 or 64)
-  - Pass hidden states between chunks within same episode
-  - Zero hidden state at episode boundaries (death/respawn)
-- [ ] Modify `act_batch()` to carry LSTM hidden states between frames
-  - Store (h, c) per environment instance
-  - Reset hidden state when death detected
-- [ ] Retrain BC model with LSTM architecture from human demos
-- [ ] Multi-client per server (4 KaaN per server, cut 200 servers to 50)
+#### In Progress:
+- [ ] V2.6 training: 250 instances on 2box6, evaluating wall awareness + inventory
+
+#### Next:
+- [ ] Multi-client per server (4 KaaN per server, cut 250 servers to 63)
 - [ ] Curriculum learning: increase bot skill as AI improves
 
 ### Phase 7 — 1v1 Mastery

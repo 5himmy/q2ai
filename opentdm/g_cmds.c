@@ -1208,6 +1208,13 @@ void ClientCommand(edict_t *ent) {
         Cmd_Kill_f(ent);
     } else if (Q_stricmp(cmd, "putaway") == 0) {
         Cmd_PutAway_f(ent);
+    } else if (Q_stricmp(cmd, "inven") == 0) {
+        // Send inventory data to client (needed by AI headless clients)
+        int k;
+        gi.WriteByte(5);  // svc_inventory
+        for (k = 0; k < MAX_ITEMS; k++)
+            gi.WriteShort(ent->client->inventory[k]);
+        gi.unicast(ent, true);
     } else if (Q_stricmp(cmd, "wave") == 0) {
         Cmd_Wave_f(ent);
     } else {

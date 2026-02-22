@@ -2,11 +2,15 @@
  * ai_observe.c -- Extract game state into observation struct
  *
  * Reads from cl.frame.ps (player state), cl_entities[] (visible entities),
- * and cl.inventory[] each frame.
+ * cl.inventory[], and wall raycasts (via CM_BoxTrace) each frame.
  */
 
 #include "client.h"
 #include "ai_bridge.h"
+
+#include <math.h>
+
+#define AI_RAY_LENGTH 1024.0f
 
 static uint8_t AI_ClassifyEntity(int ent_number, int effects)
 {
@@ -93,6 +97,59 @@ void AI_Observe_Update(ai_observation_t *obs)
 
     // Combat feedback: damage dealt this frame (from STAT_FLASHES)
     obs->damage_dealt = ps->stats[STAT_FLASHES];
+
+    // Wall raycasts: 8 eye-height + floor + ceiling + 8 knee-height = 18 rays
+    // Gives the agent spatial awareness of walls, floors, and jumpable obstacles
+    if (cl.bsp && cl.bsp->nodes) {
+        float yaw_rad = cl.predicted_angles[1] * (M_PI / 180.0f);
+        vec3_t start, end;
+        trace_t trace;
+
+        // Eye-height rays (standing viewheight ~22 units)
+        VectorCopy(obs->origin, start);
+        start[2] += 22.0f;
+
+        // 8 horizontal rays at eye height, every 45° relative to player yaw
+        for (int r = 0; r < 8; r++) {
+            float angle = yaw_rad + r * (M_PI / 4.0f);
+            end[0] = start[0] + cosf(angle) * AI_RAY_LENGTH;
+            end[1] = start[1] + sinf(angle) * AI_RAY_LENGTH;
+            end[2] = start[2];
+
+            CM_BoxTrace(&trace, start, end, vec3_origin, vec3_origin,
+                        cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
+            obs->wall_distances[r] = trace.fraction;
+        }
+
+        // Floor ray (straight down from eye height)
+        VectorCopy(start, end);
+        end[2] = start[2] - AI_RAY_LENGTH;
+        CM_BoxTrace(&trace, start, end, vec3_origin, vec3_origin,
+                    cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
+        obs->wall_distances[8] = trace.fraction;
+
+        // Ceiling ray (straight up)
+        VectorCopy(start, end);
+        end[2] = start[2] + AI_RAY_LENGTH;
+        CM_BoxTrace(&trace, start, end, vec3_origin, vec3_origin,
+                    cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
+        obs->wall_distances[9] = trace.fraction;
+
+        // Knee-height rays (~8 units above origin = shin/knee level)
+        // If knee ray hits but eye ray doesn't → jumpable obstacle
+        start[2] = obs->origin[2] + 8.0f;
+
+        for (int r = 0; r < 8; r++) {
+            float angle = yaw_rad + r * (M_PI / 4.0f);
+            end[0] = start[0] + cosf(angle) * AI_RAY_LENGTH;
+            end[1] = start[1] + sinf(angle) * AI_RAY_LENGTH;
+            end[2] = start[2];
+
+            CM_BoxTrace(&trace, start, end, vec3_origin, vec3_origin,
+                        cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
+            obs->wall_distances[10 + r] = trace.fraction;
+        }
+    }
 
     // Game info
     Q_strlcpy(obs->mapname, cl.mapname, sizeof(obs->mapname));

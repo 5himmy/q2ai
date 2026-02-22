@@ -31,7 +31,7 @@ from q2ai_structs import (
 )
 
 # Observation vector size
-OBS_DIM = 92
+OBS_DIM = 110
 
 # Observation vector layout:
 #  0-2:   origin / 4096                          (self position)
@@ -57,6 +57,12 @@ OBS_DIM = 92
 #  89:    enemy_frags / 20  (TODO: needs scoreboard data)
 #  90:    match_time_frac   (TODO: needs match timer)
 #  91:    damage_dealt / 100 (from STAT_FLASHES, per frame)
+#  --- Wall raycasts (18 rays) ---
+#  92-99:  8 horizontal at eye height (fwd, fwd-R, R, back-R, back, back-L, L, fwd-L)
+#  100:    floor distance
+#  101:    ceiling distance
+#  102-109: 8 horizontal at knee height (same directions, detects low obstacles)
+#  All values are trace fraction [0.0=touching, 1.0=clear] over 1024 units
 
 
 class Q2AIEnv(gym.Env):
@@ -215,6 +221,10 @@ class Q2AIEnv(gym.Env):
         obs[89] = 0.0  # enemy frags (TODO: scoreboard)
         obs[90] = 0.0  # match time fraction (TODO)
         obs[91] = o.damage_dealt / 100.0  # damage dealt this frame
+
+        # Wall raycasts (18 rays, already normalized 0.0-1.0 from C side)
+        for i in range(18):
+            obs[92 + i] = o.wall_distances[i]
 
         return obs
 

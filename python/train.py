@@ -349,7 +349,7 @@ def train(args):
     num_chunks_per_env = steps_per_env // seq_len
     total_chunks = num_envs * num_chunks_per_env
 
-    print(f"Q2AI Training — KaaN[V2.5-GroupedEncoder]")
+    print(f"Q2AI Training — KaaN[V2.6-WallRays+Inventory]")
     print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {steps_per_env}, "
           f"Seq: {seq_len}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
     print(f"Chunks per env: {num_chunks_per_env}, Total chunks: {total_chunks}, "
@@ -444,7 +444,9 @@ def train(args):
         with torch.no_grad():
             model.actor.bias[4] = min(model.actor.bias[4].item(), -2.2)
             model.actor.bias[5] = min(model.actor.bias[5].item(), -10.0)
-            model.actor.bias[6] = max(model.actor.bias[6].item(), -1.0)
+            model.actor.bias[6] = max(model.actor.bias[6].item(), 0.5)
+            # Reset attack weight row so bias dominates (learned weights were suppressing fire)
+            model.actor.weight.data[6].mul_(0.1)
             model.action_log_std.data.clamp_(-2.0, 0.5)
             print(f"  Attack bias: {model.actor.bias[6].item():.2f}, Crouch bias: {model.actor.bias[5].item():.2f}")
             print(f"  Log_std: {model.action_log_std.data.tolist()}")

@@ -22,38 +22,38 @@ PM_FREEZE = 4
 PMF_DUCKED = 1 << 0
 PMF_JUMP_HELD = 1 << 1
 
-# Inventory indices (order in g_items.c itemlist[])
+# Inventory indices (from OpenTDM g_local.h enum, starts with ITEM_NULL=0)
 # Armor
-INV_BODY_ARMOR = 0
-INV_COMBAT_ARMOR = 1
-INV_JACKET_ARMOR = 2
-INV_ARMOR_SHARD = 3
-INV_POWER_SCREEN = 4
-INV_POWER_SHIELD = 5
+INV_BODY_ARMOR = 1
+INV_COMBAT_ARMOR = 2
+INV_JACKET_ARMOR = 3
+INV_ARMOR_SHARD = 4
+INV_POWER_SCREEN = 5
+INV_POWER_SHIELD = 6
 
 # Weapons (index = inventory slot)
-INV_BLASTER = 6
-INV_SHOTGUN = 7
-INV_SUPER_SHOTGUN = 8
-INV_MACHINEGUN = 9
-INV_CHAINGUN = 10
-INV_GRENADES = 11       # ammo + weapon
-INV_GRENADE_LAUNCHER = 12
-INV_ROCKET_LAUNCHER = 13
-INV_HYPERBLASTER = 14
-INV_RAILGUN = 15
-INV_BFG10K = 16
+INV_BLASTER = 7
+INV_SHOTGUN = 8
+INV_SUPER_SHOTGUN = 9
+INV_MACHINEGUN = 10
+INV_CHAINGUN = 11
+INV_GRENADES = 12       # ammo + throwable weapon (same slot in Q2)
+INV_GRENADE_LAUNCHER = 13
+INV_ROCKET_LAUNCHER = 14
+INV_HYPERBLASTER = 15
+INV_RAILGUN = 16
+INV_BFG10K = 17
 
 # Ammo
-INV_SHELLS = 17
-INV_BULLETS = 18
-INV_CELLS = 19
-INV_ROCKETS = 20
-INV_SLUGS = 21
+INV_SHELLS = 18
+INV_BULLETS = 19
+INV_CELLS = 20
+INV_ROCKETS = 21
+INV_SLUGS = 22
 
 # Powerups
-INV_QUAD_DAMAGE = 22
-INV_INVULNERABILITY = 23
+INV_QUAD_DAMAGE = 23
+INV_INVULNERABILITY = 24
 
 # Grouped indices for observation extraction
 WEAPON_INDICES = [
@@ -112,6 +112,7 @@ class AiObservation(ctypes.Structure):
         ("enemy_visible", ctypes.c_int32),
         ("enemy_client_num", ctypes.c_int32),
         ("damage_dealt", ctypes.c_int32),
+        ("wall_distances", ctypes.c_float * 18),
         ("mapname", ctypes.c_char * 64),
         ("serverframe", ctypes.c_int32),
         ("servertime", ctypes.c_int32),
@@ -152,4 +153,5 @@ assert ctypes.sizeof(AiEntityObs) == 48, f"AiEntityObs size mismatch: {ctypes.si
 assert ctypes.sizeof(AiAction) == 20, f"AiAction size mismatch: {ctypes.sizeof(AiAction)}"
 # AiObservation grew by: enemy_origin(12) + enemy_angles(12) + enemy_visible(4) + enemy_client_num(4) = 32 bytes
 # AiSharedState = 4276 + 32 = 4308
-assert ctypes.sizeof(AiSharedState) == 4312, f"AiSharedState size mismatch: {ctypes.sizeof(AiSharedState)}"
+# wall_distances added 18*4 = 72 bytes
+assert ctypes.sizeof(AiSharedState) == 4384, f"AiSharedState size mismatch: {ctypes.sizeof(AiSharedState)}"

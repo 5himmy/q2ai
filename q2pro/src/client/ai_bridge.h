@@ -63,6 +63,14 @@ typedef struct {
     // Combat feedback
     int32_t     damage_dealt;       // from STAT_FLASHES, resets each frame
 
+    // Spatial awareness: wall distances from raycasts
+    // [0-7]   8 horizontal at eye height (relative to yaw: fwd, fwd-R, R, back-R, back, back-L, L, fwd-L)
+    // [8]     floor distance
+    // [9]     ceiling distance
+    // [10-17] 8 horizontal at knee height (same directions, detects low obstacles)
+    // Values are trace fraction [0.0-1.0] * 1024 units max range
+    float       wall_distances[18];
+
     // Game info
     char        mapname[64];
     int32_t     serverframe;

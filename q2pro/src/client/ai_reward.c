@@ -1,16 +1,16 @@
 /*
  * ai_reward.c -- Compute per-frame reward from game state deltas
  *
- * V1.4: Combat-dense rewards. Damage dealt is the key dense signal.
+ * V1.5: Precision-focused rewards. Aim quality scales all combat rewards.
  *
  *   +1.0  per frag
  *   -1.0  per death
  *   -damage/100 for damage taken
- *   +damage/100 for damage dealt (via STAT_FLASHES from opentdm)
- *   +0.15  hit confirmation bonus (any damage dealt this frame)
- *   +0.02  aim tracking (looking within 10° of enemy)
- *   +0.05  shooting at visible enemy (reduced from 0.10)
- *   -0.03  blind-fire penalty (reduced from 0.05)
+ *   +damage/100 for damage dealt (only when enemy in FOV)
+ *   +0.15  hit confirmation bonus (only when enemy in FOV)
+ *   +0.20  precision bonus (scaled by crosshair accuracy on hit)
+ *   +0.01~0.05 graduated aim tracking (scales with dot product)
+ *   +0.02~0.10 shooting at enemy in FOV (scales with aim precision)
  *   -0.10  crouch penalty per frame
  *   -0.01  stuck penalty (speed < 20)
  *   -0.15  circling penalty (< 128 units from checkpoint after 30 frames)
@@ -82,11 +82,51 @@ float AI_Reward_Compute(void)
         reward -= damage / 100.0f;
     }
 
+    // === ENEMY DETECTION (needed before damage reward) ===
+
+    // Find enemy player
+    bool enemy_visible = false;
+    float enemy_dist = 99999.0f;
+    float enemy_dx = 0, enemy_dy = 0, enemy_dz = 0;
+    if (cur_pm_type == PM_NORMAL && cur_health > 0) {
+        for (i = 0; i < cl.frame.numEntities; i++) {
+            int k = (cl.frame.firstEntity + i) & PARSE_ENTITIES_MASK;
+            const centity_state_t *es = &cl.entityStates[k];
+            if (es->number >= 1 && es->number <= cl.maxclients &&
+                es->number != cl.frame.clientNum + 1) {
+                enemy_visible = true;
+                enemy_dx = es->s.origin[0] - cl.predicted_origin[0];
+                enemy_dy = es->s.origin[1] - cl.predicted_origin[1];
+                enemy_dz = es->s.origin[2] - cl.predicted_origin[2];
+                enemy_dist = sqrtf(enemy_dx*enemy_dx + enemy_dy*enemy_dy + enemy_dz*enemy_dz);
+                break;
+            }
+        }
+    }
+
+    // Compute aim dot product (how close crosshair is to enemy)
+    // dot=1.0 = perfect aim, dot=0.707 = 45°, dot=0 = 90°, dot<0 = behind
+    float aim_dot = -1.0f;
+    if (enemy_visible && enemy_dist > 1.0f) {
+        float yaw_r = ps->viewangles[1] * (M_PI / 180.0f);
+        float pitch_r = ps->viewangles[0] * (M_PI / 180.0f);
+        float vx2 = cosf(pitch_r) * cosf(yaw_r);
+        float vy2 = cosf(pitch_r) * sinf(yaw_r);
+        float vz2 = -sinf(pitch_r);
+        float inv_d = 1.0f / enemy_dist;
+        aim_dot = vx2 * (enemy_dx * inv_d) + vy2 * (enemy_dy * inv_d) + vz2 * (enemy_dz * inv_d);
+    }
+    bool enemy_in_fov = (aim_dot > 0.707f);  // cos(45°)
+
     // Damage dealt reward (from STAT_FLASHES, set by opentdm)
+    // Scaled by aim precision: tighter aim = more reward
     int damage_dealt = ps->stats[STAT_FLASHES];
-    if (damage_dealt > 0) {
-        reward += damage_dealt / 100.0f;  // dense damage signal
-        reward += 0.15f;                  // hit confirmation bonus
+    if (damage_dealt > 0 && enemy_in_fov) {
+        reward += damage_dealt / 100.0f;           // base damage signal
+        reward += 0.15f;                           // hit confirmation bonus
+        // Precision bonus: scale 0→0.2 as dot goes from 0.707→1.0
+        float precision = (aim_dot - 0.707f) / (1.0f - 0.707f);  // 0.0 to 1.0
+        reward += 0.2f * precision;                // up to +0.2 for crosshair-on hits
     }
 
     // === MOVEMENT SHAPING (reduced) ===
@@ -150,51 +190,18 @@ float AI_Reward_Compute(void)
 
     // === COMBAT ENGAGEMENT ===
 
-    // Find enemy player
-    bool enemy_visible = false;
-    float enemy_dist = 99999.0f;
-    float enemy_dx = 0, enemy_dy = 0, enemy_dz = 0;
-    if (cur_pm_type == PM_NORMAL && cur_health > 0) {
-        for (i = 0; i < cl.frame.numEntities; i++) {
-            int k = (cl.frame.firstEntity + i) & PARSE_ENTITIES_MASK;
-            const centity_state_t *es = &cl.entityStates[k];
-            if (es->number >= 1 && es->number <= cl.maxclients &&
-                es->number != cl.frame.clientNum + 1) {
-                enemy_visible = true;
-                enemy_dx = es->s.origin[0] - cl.predicted_origin[0];
-                enemy_dy = es->s.origin[1] - cl.predicted_origin[1];
-                enemy_dz = es->s.origin[2] - cl.predicted_origin[2];
-                enemy_dist = sqrtf(enemy_dx*enemy_dx + enemy_dy*enemy_dy + enemy_dz*enemy_dz);
-                break;
-            }
-        }
+    // Graduated aim tracking reward (uses aim_dot computed earlier)
+    // 45° (~0.707): +0.01, 20° (~0.94): +0.03, 10° (~0.985): +0.05
+    if (aim_dot > 0.707f) {
+        float aim_quality = (aim_dot - 0.707f) / (1.0f - 0.707f);  // 0→1
+        reward += 0.01f + 0.04f * aim_quality;  // +0.01 to +0.05
     }
 
-    // Aim tracking reward: looking within 10° of enemy (tightened from 20°)
-    if (enemy_visible && enemy_dist > 1.0f) {
-        float yaw_rad = ps->viewangles[1] * (M_PI / 180.0f);
-        float pitch_rad = ps->viewangles[0] * (M_PI / 180.0f);
-        float vdir_x = cosf(pitch_rad) * cosf(yaw_rad);
-        float vdir_y = cosf(pitch_rad) * sinf(yaw_rad);
-        float vdir_z = -sinf(pitch_rad);
-        float inv_dist = 1.0f / enemy_dist;
-        float edir_x = enemy_dx * inv_dist;
-        float edir_y = enemy_dy * inv_dist;
-        float edir_z = enemy_dz * inv_dist;
-        float dot = vdir_x * edir_x + vdir_y * edir_y + vdir_z * edir_z;
-        // 10° = cos(10°) ≈ 0.985
-        if (dot > 0.985f) {
-            reward += 0.02f;  // aim tracking: looking precisely at enemy
-        }
-    }
-
-    // Shooting rewards/penalties (reduced from V1.3)
-    if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack) {
-        if (!enemy_visible) {
-            reward -= 0.03f;  // blind fire: mild penalty
-        } else {
-            reward += 0.05f;  // aimed fire (reduced — damage dealt is the real reward now)
-        }
+    // Shooting reward — only reward aimed shots, no penalty for spam
+    // Let the bot learn "shooting at enemy = good" without fearing the trigger
+    if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack && enemy_in_fov) {
+        float aim_quality = (aim_dot - 0.707f) / (1.0f - 0.707f);
+        reward += 0.02f + 0.08f * aim_quality;  // +0.02 to +0.10
     }
 
     // Blaster penalty: if holding blaster (item 7) but owns any better weapon

@@ -1,11 +1,11 @@
 """
 model.py -- Actor-Critic with grouped encoder + entity attention + LSTM memory.
 
-V2.5 Architecture:
-  obs (91) → slice into groups → group encoders → concat → fusion → LSTM → head
+V2.6 Architecture:
+  obs (110) → slice into groups → group encoders → concat → fusion → LSTM → head
 
 Group encoders:
-  - Self: Fourier(pos) + vel + angles + stats + alive → Linear(38→96)
+  - Self: Fourier(pos) + vel + angles + stats + alive + walls(18) → Linear(56→96)
   - Inventory: weapon_1hot + owned + ammo → Linear(27→64)
   - Enemy: visible + rel_xyz + dist + angle → Linear(7→64)
   - Entities: 8×[xyz+active+type] → shared Linear(5→64) + attention pool → 64
@@ -147,9 +147,9 @@ class ActorCritic(nn.Module):
         # --- Shared Group Encoders ---
         self.fourier = FourierEncoding(input_dim=3, num_bands=4)  # 3 → 27
 
-        # Self state: fourier(27) + vel(3) + angles(4) + stats(3) + alive(1) = 38
+        # Self state: fourier(27) + vel(3) + angles(4) + stats(3) + alive(1) + walls(18) = 56
         self.self_encoder = nn.Sequential(
-            layer_init(nn.Linear(38, 96)),
+            layer_init(nn.Linear(56, 96)),
             nn.ReLU(),
         )
 
@@ -186,7 +186,7 @@ class ActorCritic(nn.Module):
             self.actor.bias[2] = 0.3    # forward: slight tendency to move
             self.actor.bias[4] = -2.2   # jump: ~10%
             self.actor.bias[5] = -10.0  # crouch: effectively disabled (~0.005%)
-            self.actor.bias[6] = -1.0   # attack: ~27% (aggressive, learn aim fast)
+            self.actor.bias[6] = 0.5    # attack: ~62% (shoot often, precision rewards guide aim)
             self.actor.bias[7] = 2.0    # weapon 0: no switch (strong preference)
 
         self.critic_lstm = nn.LSTM(self.HIDDEN_SIZE, self.HIDDEN_SIZE, batch_first=True)
@@ -226,10 +226,11 @@ class ActorCritic(nn.Module):
         enemy = obs[..., 41:48]     # 7
         ent_flat = obs[..., 48:88]  # 40 → reshape to (..., 8, 5)
         game = obs[..., 88:92]      # 4  frags, enemy_frags, match_time, damage_dealt
+        walls = obs[..., 92:110]    # 18 wall raycast distances (8 eye + floor + ceil + 8 knee)
 
         # --- Self state group ---
         pos_fourier = self.fourier(pos)  # (..., 27)
-        self_input = torch.cat([pos_fourier, vel, angles, stats, alive], dim=-1)  # (..., 38)
+        self_input = torch.cat([pos_fourier, vel, angles, stats, alive, walls], dim=-1)  # (..., 56)
         self_features = self.self_encoder(self_input)  # (..., 96)
 
         # --- Inventory group ---

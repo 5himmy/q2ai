@@ -20,6 +20,7 @@ static bool control_initialized;
 static unsigned join_time;
 static unsigned ready_time;
 static unsigned respawn_time;
+static unsigned inven_time;
 static bool joined;
 static bool readied;
 static int join_attempts;
@@ -32,7 +33,7 @@ void AI_Control_Init(void)
     q2ai_server = Cvar_Get("q2ai_server", "127.0.0.1:27910", 0);
     q2ai_autojoin = Cvar_Get("q2ai_autojoin", "1", 0);
     q2ai_team = Cvar_Get("q2ai_team", "auto", 0);
-    q2ai_name = Cvar_Get("q2ai_name", "KaaN[V1.0]", 0);
+    q2ai_name = Cvar_Get("q2ai_name", "KaaN[V2.6]", 0);
     q2ai_demo = Cvar_Get("q2ai_demo", "0", 0);
     control_initialized = true;
     joined = false;
@@ -40,6 +41,7 @@ void AI_Control_Init(void)
     join_time = 0;
     ready_time = 0;
     respawn_time = 0;
+    inven_time = 0;
     join_attempts = 0;
 
     // Initialize the shared memory bridge
@@ -89,6 +91,11 @@ void AI_Control_Frame(void)
             Cbuf_AddText(&cmd_buffer, "cmd ready\n");
             ready_time = now;
             Com_Printf("Q2AI: Sent ready command\n");
+        }
+        // Request inventory periodically (server only sends on request)
+        if (now - inven_time > 5000) {
+            Cbuf_AddText(&cmd_buffer, "cmd inven\n");
+            inven_time = now;
         }
         return;
     }
