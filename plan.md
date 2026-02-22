@@ -82,8 +82,8 @@ Server:27913 + KaaN[instance=3]  ─┘
   - +0.2 per health/armor pickup, +0.3 per weapon pickup
   - +damage/100 for damage dealt (FOV-gated: only when enemy within 45°)
   - +0.15 hit confirmation, +0.20 precision bonus (scales with aim accuracy)
-  - +0.01~0.05 graduated aim tracking (scales with dot product to enemy)
-  - +0.02~0.10 shooting at enemy in FOV (scales with aim precision)
+  - +0.05~0.20 graduated aim tracking (4x boosted, scales with dot product to enemy)
+  - +0.05~0.30 shooting at enemy in FOV (3x boosted, scales with aim precision)
   - -0.02 blaster penalty (has better weapon but won't switch)
   - +0.01 approaching visible enemy, -0.005 retreating from enemy
   - Item proximity reward (+0.003/unit approached, capped ±0.08)
@@ -163,6 +163,9 @@ Server:27913 + KaaN[instance=3]  ─┘
   - 18-ray CM_BoxTrace (8 eye + floor + ceiling + 8 knee), OBS_DIM 92→110
   - Server-side svc_inventory push on spawn, fixed off-by-one index mapping
   - V1.5 precision rewards: FOV-gated damage, graduated aim, attack bias 0.5
+  - V1.6 boosted aim rewards: aim tracking 4x (+0.05~0.20), aimed shots 3x (+0.05~0.30)
+  - Bot spawn fix: startsolid nudge range 16→48 for hop map
+  - Training map: hop (smaller than 2box6, more frequent encounters)
 
 #### In Progress:
 - [ ] V2.6 training: 250 instances on 2box6, evaluating wall awareness + inventory
