@@ -19,7 +19,9 @@ chunk boundaries for truncated BPTT during PPO updates.
 import argparse
 import csv
 import os
+import socket
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -31,6 +33,91 @@ from model import ActorCritic
 from q2ai_env import OBS_DIM, Q2AIEnv
 
 REWARD_SCALE = 5.0   # Scale up small rewards (~-0.1) so value function learns faster
+BASE_PORT = 27910
+RCON_PASSWORD = "q2ai"
+
+
+def rcon_query(port, command):
+    """Send rcon command to q2pro server and return response."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(2.0)
+        packet = b"\xff\xff\xff\xff" + f"rcon {RCON_PASSWORD} {command}\n".encode()
+        sock.sendto(packet, ("127.0.0.1", port))
+        data = sock.recv(4096)
+        sock.close()
+        text = data[4:].decode("utf-8", errors="replace")
+        if text.startswith("print\n"):
+            text = text[6:]
+        return text.strip()
+    except Exception:
+        return None
+
+
+class AdaptiveTuner:
+    """Adjusts entropy_coef, LR, reward_scale, and bot skill during training."""
+
+    def __init__(self, initial_entropy_coef, initial_lr, initial_reward_scale,
+                 num_rollouts, num_envs, target_entropy=7.0, initial_bot_skill=0):
+        self.entropy_coef = initial_entropy_coef
+        self.initial_lr = initial_lr
+        self.lr = initial_lr
+        self.reward_scale = initial_reward_scale
+        self.num_rollouts = num_rollouts
+        self.num_envs = num_envs
+        self.target_entropy = target_entropy
+        self.bot_skill = initial_bot_skill
+
+        # Rolling K/D tracking (last 10 logged iterations)
+        self.kd_history = deque(maxlen=10)
+
+    def update(self, iteration, metrics, rollout_frags, rollout_deaths):
+        """Adjust hyperparameters based on recent metrics. Call after each PPO update."""
+
+        # 1. Adaptive entropy coefficient
+        ent = metrics["entropy"]
+        if ent > self.target_entropy:
+            self.entropy_coef *= 0.995
+        elif ent < self.target_entropy - 1.0:
+            self.entropy_coef *= 1.002
+        self.entropy_coef = max(0.0005, min(0.02, self.entropy_coef))
+
+        # 2. Linear LR decay
+        frac = 1.0 - (iteration - 1) / self.num_rollouts
+        self.lr = self.initial_lr * frac
+
+        # 3. Reward scale (value-loss based)
+        vl = metrics["value_loss"]
+        if vl > 10.0:
+            self.reward_scale *= 0.95
+        elif vl < 0.1 and iteration > 20:
+            self.reward_scale *= 1.05
+        self.reward_scale = max(1.0, min(20.0, self.reward_scale))
+
+        # 4. Curriculum — bot skill via rcon
+        kd = rollout_frags / max(rollout_deaths, 1)
+        self.kd_history.append(kd)
+        if len(self.kd_history) >= 10:
+            rolling_kd = sum(self.kd_history) / len(self.kd_history)
+            if rolling_kd > 0.5 and self.bot_skill < 10:
+                self.bot_skill += 1
+                print(f"  [TUNER] Graduating bot skill to {self.bot_skill} (rolling K/D={rolling_kd:.2f})")
+                for port in range(BASE_PORT, BASE_PORT + self.num_envs):
+                    rcon_query(port, f"g_bot_skill {self.bot_skill}")
+                self.kd_history.clear()
+            elif rolling_kd < 0.05 and self.bot_skill > 0:
+                self.bot_skill -= 1
+                print(f"  [TUNER] Dropping bot skill to {self.bot_skill} (rolling K/D={rolling_kd:.2f})")
+                for port in range(BASE_PORT, BASE_PORT + self.num_envs):
+                    rcon_query(port, f"g_bot_skill {self.bot_skill}")
+                self.kd_history.clear()
+
+        return {
+            "entropy_coef": self.entropy_coef,
+            "lr": self.lr,
+            "reward_scale": self.reward_scale,
+            "bot_skill": self.bot_skill,
+        }
 
 
 class RunningNormalizer:
@@ -349,11 +436,20 @@ def train(args):
     num_chunks_per_env = steps_per_env // seq_len
     total_chunks = num_envs * num_chunks_per_env
 
-    print(f"Q2AI Training — KaaN[V2.7-CleanRewards+Curriculum]")
+    print(f"Q2AI Training — KaaN[V2.8-AdaptiveTuning]")
     print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {steps_per_env}, "
           f"Seq: {seq_len}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
     print(f"Chunks per env: {num_chunks_per_env}, Total chunks: {total_chunks}, "
           f"Batch chunks: {args.batch_chunks}")
+
+    # Adaptive hyperparameter tuner
+    tuner = AdaptiveTuner(
+        initial_entropy_coef=args.entropy_coef,
+        initial_lr=args.lr,
+        initial_reward_scale=REWARD_SCALE,
+        num_rollouts=args.num_rollouts,
+        num_envs=num_envs,
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -465,6 +561,7 @@ def train(args):
         "iteration", "timesteps", "episodes", "mean_reward", "step_reward",
         "frags", "deaths", "mean_length", "policy_loss", "value_loss",
         "entropy", "clip_fraction", "approx_kl", "elapsed_s",
+        "entropy_coef", "lr", "reward_scale", "bot_skill",
     ])
 
     # Per-env episode tracking
@@ -545,7 +642,7 @@ def train(args):
             for e in range(num_envs):
                 next_obs_raw, reward, terminated, truncated, info = results[e]
                 rollout_rewards.append(reward)
-                scaled_reward = reward * REWARD_SCALE
+                scaled_reward = reward * tuner.reward_scale
 
                 buffer.add(e, obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated)
                 total_timesteps += 1
@@ -595,18 +692,24 @@ def train(args):
 
         buffer.compute_returns(last_values, gamma=args.gamma, lam=args.lam)
 
+        # Apply adaptive LR before PPO update
+        optimizer.param_groups[0]['lr'] = tuner.lr
+
         # PPO update with sequence chunks
         metrics = ppo_update(
             model, optimizer, buffer,
             clip_eps=args.clip_eps,
             epochs=args.epochs,
             batch_chunks=args.batch_chunks,
-            entropy_coef=args.entropy_coef,
+            entropy_coef=tuner.entropy_coef,
             value_coef=args.value_coef,
             max_grad_norm=args.max_grad_norm,
             target_kl=args.target_kl,
             device=device,
         )
+
+        # Adaptive tuning
+        tuner_state = tuner.update(iteration, metrics, rollout_frags, rollout_deaths)
 
         # Log
         if iteration % args.log_interval == 0 or iteration == 1:
@@ -625,6 +728,10 @@ def train(args):
                   f"pi={metrics['policy_loss']:>7.4f} v={metrics['value_loss']:>7.4f} "
                   f"ent={metrics['entropy']:>6.3f} kl={metrics['approx_kl']:>7.4f} | "
                   f"{elapsed:>6.0f}s")
+            print(f"  [TUNER] ent_c={tuner_state['entropy_coef']:.4f} "
+                  f"lr={tuner_state['lr']:.2e} "
+                  f"rscale={tuner_state['reward_scale']:.1f} "
+                  f"bot_skill={tuner_state['bot_skill']}")
 
             log_writer.writerow([
                 iteration, total_timesteps, total_episodes,
@@ -633,6 +740,8 @@ def train(args):
                 f"{metrics['policy_loss']:.6f}", f"{metrics['value_loss']:.6f}",
                 f"{metrics['entropy']:.4f}", f"{metrics['clip_fraction']:.4f}",
                 f"{metrics['approx_kl']:.6f}", f"{elapsed:.1f}",
+                f"{tuner_state['entropy_coef']:.6f}", f"{tuner_state['lr']:.2e}",
+                f"{tuner_state['reward_scale']:.2f}", tuner_state['bot_skill'],
             ])
             log_file.flush()
 
