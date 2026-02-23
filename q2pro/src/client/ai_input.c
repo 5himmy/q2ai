@@ -13,6 +13,8 @@
 #include "ai_bridge.h"
 
 static int last_applied_frame = -1;
+static float smooth_yaw = 0.0f;
+static float smooth_pitch = 0.0f;
 
 void AI_Input_Apply(const ai_action_t *action)
 {
@@ -20,12 +22,16 @@ void AI_Input_Apply(const ai_action_t *action)
     if (cl.frame.number != last_applied_frame) {
         last_applied_frame = cl.frame.number;
 
-        cl.viewangles[YAW] += action->yaw_delta;
+        // Low-pass filter: smooths out per-frame sampling noise
+        // 0.6 = responsive to intentional turns, filters jitter on target
+        smooth_yaw = 0.6f * action->yaw_delta + 0.4f * smooth_yaw;
+        smooth_pitch = 0.6f * action->pitch_delta + 0.4f * smooth_pitch;
+
+        cl.viewangles[YAW] += smooth_yaw;
 
         // Mild pitch centering: decay 15% toward level each frame
-        // Prevents random-walk from getting stuck at sky/floor
         cl.viewangles[PITCH] *= 0.85f;
-        cl.viewangles[PITCH] += action->pitch_delta;
+        cl.viewangles[PITCH] += smooth_pitch;
 
         // Clamp pitch to ±89 degrees
         float pitch = SHORT2ANGLE(cl.frame.ps.pmove.delta_angles[PITCH]);

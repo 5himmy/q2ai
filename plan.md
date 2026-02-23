@@ -75,15 +75,10 @@ Server:27913 + KaaN[instance=3]  ─┘
 
 ### Phase 5 — Reward System + Episode Management: COMPLETE
 
-- `ai_reward.c`: V2.0 simplified — core combat + critical anti-suicide only
-  - +1.0 per frag, -1.0 per death
-  - -damage/100 for damage taken
-  - +damage/100 for damage dealt (FOV-gated: only when enemy within 45°)
-  - -0.15 self-splash penalty (shooting wall within 120u)
-  - -0.02 blaster penalty (has better weapon but won't switch)
-  - -0.01 stuck penalty (speed < 20)
-  - +0.1 per health/armor pickup, +0.15 per weapon pickup
-  - Stripped from 15 signals to 9 (value loss 47→0.4)
+- `ai_reward.c`: V3.0 hit-only rewards + auxiliary aim supervision
+  - +1.0 per frag, -1.0 per death, +damage_dealt/50
+  - Aim direction learned via auxiliary MSE loss in Python (not reward)
+  - RL reward only for actual hits — forces NN to tighten aim std
 - `ai_control.c`: Auto-connect, auto-join team, auto-respawn, auto-ready, name override
 - Full episode loop: connect → join team → ready → play → die → respawn → repeat
 - Cvars: `q2ai_team`, `q2ai_name`, `q2ai_autoconnect`, `q2ai_server`, `q2ai_instance`
@@ -198,9 +193,15 @@ Server:27913 + KaaN[instance=3]  ─┘
     - Instagib mode (`g_gamemode 1`): railgun only, one-shot kill, hitscan
     - Infinite ammo (`dmflags 8192`)
     - `q2ai_nomove` cvar: locks all movement + weapon switching in headless client
-    - Smooth gradient rewards: `max(0, aim_dot) * 0.02` facing + `max(0, aim_dot) * 0.05` shooting
-    - No penalties — shooting away from enemy just gives 0, not negative
-    - Damage dealt bonus: `damage / 50`
+    - **Hit-only rewards**: frag (+1.0), death (-1.0), damage dealt (/50) — no continuous facing rewards
+    - **Auxiliary aim supervision**: MSE loss between NN yaw/pitch means and ideal aim deltas from observation
+      - `aim_loss = MSE(cont_means[:2], aim_targets) * aim_mask` (only when enemy visible)
+      - Provides dense per-frame gradient for aim direction (vs sparse frag reward)
+      - aim_loss dropped from 1.4 → 0.01 within ~20 iterations
+    - **Per-dimension std clamping**: yaw/pitch log_std [-4.0, -2.5] (max ±0.8°), movement [-2.0, 0.5]
+    - **Input smoothing**: EMA low-pass filter in ai_input.c (0.6/0.4 blend)
+    - **Pitch centering**: 0.85× decay toward level each frame
+    - Results: 250 instances, frags 3→280+, aim_loss 1.4→0.01
   - Stage 2: `g_bot_nomove 1` + `g_bot_noshoot 0` — stationary bot shoots back, AI learns combat under fire
   - Stage 3: `g_bot_nomove 0` + `g_bot_noshoot 0` — full bot behavior, AI learns movement + combat
   - Stages can be automated via `AdaptiveTuner` rcon commands based on K/D thresholds

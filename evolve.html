@@ -42,17 +42,17 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 </head>
 <body>
 <h1>KaaN — Evolution Dashboard</h1>
-<p class="subtitle">Last updated: 2026-02-22 07:33:28 | KaaN: 0 vs Bot: ? | FPS: 125</p>
+<p class="subtitle">Last updated: 2026-02-23 06:48:39 | KaaN: 0 vs Bot: ? | FPS: 62</p>
 
 <div class="section">
 <h2>Current Stats</h2>
 <div class="stats">
-<div class="stat"><div class="value negative">-0.0038</div><div class="label">Step Reward</div></div>
-<div class="stat"><div class="value">11</div><div class="label">Frags (last iter)</div></div>
-<div class="stat"><div class="value">213</div><div class="label">Deaths (last iter)</div></div>
-<div class="stat"><div class="value">10,240,000</div><div class="label">Total Steps</div></div>
-<div class="stat"><div class="value">160</div><div class="label">Iteration</div></div>
-<div class="stat"><div class="value">8.6</div><div class="label">Entropy</div></div>
+<div class="stat"><div class="value positive">0.0819</div><div class="label">Step Reward</div></div>
+<div class="stat"><div class="value">4</div><div class="label">Frags (last iter)</div></div>
+<div class="stat"><div class="value">0</div><div class="label">Deaths (last iter)</div></div>
+<div class="stat"><div class="value">512,000</div><div class="label">Total Steps</div></div>
+<div class="stat"><div class="value">20</div><div class="label">Iteration</div></div>
+<div class="stat"><div class="value">8.0</div><div class="label">Entropy</div></div>
 </div>
 </div>
 
@@ -61,14 +61,14 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 <div class="cards">
 <div class="card done"><span class="icon">&#10004;</span><div class="title">Stop blind firing</div><div class="threshold">blind fire penalty -0.05/frame</div></div>
 <div class="card done"><span class="icon">&#10004;</span><div class="title">Stop crouching</div><div class="threshold">crouch penalty -0.10/frame</div></div>
-<div class="card progress"><span class="icon">&#9200;</span><div class="title">Stop circling</div><div class="threshold">circling penalty -0.15/3s</div></div>
-<div class="card progress"><span class="icon">&#9200;</span><div class="title">Track enemy with aim</div><div class="threshold">aim within 20deg of enemy</div></div>
-<div class="card pending"><span class="icon">&#9744;</span><div class="title">Shoot at enemy</div><div class="threshold">aimed fire +0.10/frame</div></div>
-<div class="card progress"><span class="icon">&#9200;</span><div class="title">Approach enemy</div><div class="threshold">approach reward +0.03</div></div>
-<div class="card progress"><span class="icon">&#9200;</span><div class="title">Switch weapons</div><div class="threshold">blaster penalty -0.02/frame</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Stop circling</div><div class="threshold">circling penalty -0.15/3s</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Track enemy with aim</div><div class="threshold">aim within 20deg of enemy</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Shoot at enemy</div><div class="threshold">aimed fire +0.10/frame</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Approach enemy</div><div class="threshold">approach reward +0.03</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Switch weapons</div><div class="threshold">blaster penalty -0.02/frame</div></div>
 <div class="card done"><span class="icon">&#10004;</span><div class="title">Get first frag</div><div class="threshold">frags > 0</div></div>
-<div class="card pending"><span class="icon">&#9744;</span><div class="title">Consistent positive reward</div><div class="threshold">step_reward > 0.01</div></div>
-<div class="card progress"><span class="icon">&#9200;</span><div class="title">Frag/death ratio > 0.5</div><div class="threshold">frags/deaths > 0.5</div></div>
+<div class="card done"><span class="icon">&#10004;</span><div class="title">Consistent positive reward</div><div class="threshold">step_reward > 0.01</div></div>
+<div class="card pending"><span class="icon">&#9744;</span><div class="title">Frag/death ratio > 0.5</div><div class="threshold">frags/deaths > 0.5</div></div>
 <div class="card pending"><span class="icon">&#9744;</span><div class="title">Win a match</div><div class="threshold">frags > bot frags</div></div>
 
 </div>
@@ -94,36 +94,36 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 <h2>Evolution Log</h2>
 <table>
 <tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Observation</th></tr>
-<tr><td>07:33</td><td>160</td><td>10,240,000</td><td class="negative">-0.0038</td><td>11.0</td><td>213</td><td>8.6</td><td>0.0</td><td>Improving — 213 deaths, 11 frags</td></tr>
-<tr><td>07:23</td><td>145</td><td>9,280,000</td><td class="negative">-0.0029</td><td>12.0</td><td>188</td><td>8.6</td><td>0.0</td><td>Improving — 188 deaths, 12 frags</td></tr>
-<tr><td>07:13</td><td>125</td><td>8,000,000</td><td class="negative">-0.0001</td><td>97.0</td><td>114</td><td>8.7</td><td>0.0</td><td>Improving — 114 deaths, 97 frags</td></tr>
-<tr><td>07:03</td><td>105</td><td>6,720,000</td><td class="negative">-0.0031</td><td>13.0</td><td>194</td><td>8.7</td><td>0.0</td><td>Improving — 194 deaths, 13 frags</td></tr>
-<tr><td>06:53</td><td>90</td><td>5,760,000</td><td class="negative">-0.0031</td><td>14.0</td><td>186</td><td>8.7</td><td>0.0</td><td>Improving — 186 deaths, 14 frags</td></tr>
-<tr><td>06:43</td><td>70</td><td>4,480,000</td><td class="negative">-0.0034</td><td>17.0</td><td>217</td><td>8.8</td><td>0.0</td><td>Improving — 217 deaths, 17 frags</td></tr>
-<tr><td>06:33</td><td>50</td><td>3,200,000</td><td class="negative">-0.0032</td><td>16.0</td><td>196</td><td>8.7</td><td>0.0</td><td>Improving — 196 deaths, 16 frags</td></tr>
-<tr><td>06:23</td><td>35</td><td>2,240,000</td><td class="negative">-0.0041</td><td>9.0</td><td>261</td><td>8.8</td><td>0.0</td><td>Improving — 261 deaths, 9 frags</td></tr>
-<tr><td>06:13</td><td>15</td><td>960,000</td><td class="negative">-0.0032</td><td>21.0</td><td>224</td><td>8.8</td><td>0.0</td><td>Improving — 224 deaths, 21 frags</td></tr>
-<tr><td>05:58</td><td>35</td><td>2,240,000</td><td class="negative">-0.0045</td><td>4.0</td><td>260</td><td>8.7</td><td>0.0</td><td>Improving — 260 deaths, 4 frags</td></tr>
-<tr><td>05:48</td><td>15</td><td>960,000</td><td class="negative">-0.0039</td><td>19.0</td><td>224</td><td>8.8</td><td>0.0</td><td>Improving — 224 deaths, 19 frags</td></tr>
-<tr><td>05:32</td><td>30</td><td>960,000</td><td class="negative">-0.0044</td><td>9.0</td><td>126</td><td>8.6</td><td>0.0</td><td>Improving — 126 deaths, 9 frags</td></tr>
-<tr><td>05:15</td><td>80</td><td>2,560,000</td><td class="positive">0.0703</td><td>9.0</td><td>199</td><td>7.9</td><td>0.0</td><td>Combat engaged! 9 frags, K/D=0.05</td></tr>
-<tr><td>05:05</td><td>40</td><td>1,280,000</td><td class="positive">0.0658</td><td>7.0</td><td>226</td><td>8.2</td><td>0.0</td><td>Combat engaged! 7 frags, K/D=0.03</td></tr>
-<tr><td>04:44</td><td>40</td><td>1,280,000</td><td class="positive">0.0148</td><td>11.0</td><td>205</td><td>8.0</td><td>0.0</td><td>Combat engaged! 11 frags, K/D=0.05</td></tr>
-<tr><td>03:40</td><td>20</td><td>640,000</td><td class="positive">0.0046</td><td>5.0</td><td>431</td><td>8.2</td><td>0.0</td><td>Near break-even — 431 deaths, 5 frags</td></tr>
-<tr><td>03:24</td><td>70</td><td>2,240,000</td><td class="positive">0.0101</td><td>1.0</td><td>377</td><td>8.0</td><td>0.0</td><td>Getting kills! 1 frags, 377 deaths</td></tr>
-<tr><td>03:14</td><td>45</td><td>1,440,000</td><td class="positive">0.0068</td><td>1.0</td><td>358</td><td>8.1</td><td>0.0</td><td>Getting kills! 1 frags, 358 deaths</td></tr>
-<tr><td>03:04</td><td>20</td><td>640,000</td><td class="positive">0.0039</td><td>8.0</td><td>501</td><td>8.2</td><td>0.0</td><td>Near break-even — 501 deaths, 8 frags</td></tr>
-<tr><td>02:36</td><td>40</td><td>512,000</td><td class="positive">0.0051</td><td>3.0</td><td>62</td><td>8.3</td><td>0.0</td><td>Getting kills! 3 frags, 62 deaths</td></tr>
-<tr><td>02:15</td><td>40</td><td>512,000</td><td class="positive">0.0043</td><td>25.0</td><td>17</td><td>7.7</td><td>0.0</td><td>Near break-even — 17 deaths, 25 frags</td></tr>
-<tr><td>01:51</td><td>10</td><td>512,000</td><td class="positive">0.0143</td><td>13.0</td><td>395</td><td>8.1</td><td>0.0</td><td>Combat engaged! 13 frags, K/D=0.03</td></tr>
-<tr><td>01:41</td><td>1</td><td>51,200</td><td class="negative">-0.0042</td><td>3.0</td><td>348</td><td>7.7</td><td>0.0</td><td>Improving — 348 deaths, 3 frags</td></tr>
-<tr><td>01:18</td><td>40</td><td>512,000</td><td class="negative">-0.0057</td><td>0.0</td><td>49</td><td>7.2</td><td>0.0</td><td>Improving — 49 deaths, 0 frags</td></tr>
-<tr><td>00:59</td><td>305</td><td>7,808,000</td><td class="negative">-0.0038</td><td>2.0</td><td>78</td><td>7.2</td><td>0.0</td><td>Improving — 78 deaths, 2 frags</td></tr>
-<tr><td>00:49</td><td>260</td><td>6,656,000</td><td class="negative">-0.0028</td><td>0.0</td><td>103</td><td>7.2</td><td>0.0</td><td>Improving — 103 deaths, 0 frags</td></tr>
-<tr><td>00:39</td><td>215</td><td>5,504,000</td><td class="negative">-0.0041</td><td>3.0</td><td>74</td><td>7.2</td><td>0.0</td><td>Improving — 74 deaths, 3 frags</td></tr>
-<tr><td>00:29</td><td>170</td><td>4,352,000</td><td class="negative">-0.0038</td><td>3.0</td><td>76</td><td>7.1</td><td>0.0</td><td>Improving — 76 deaths, 3 frags</td></tr>
-<tr><td>00:19</td><td>130</td><td>3,328,000</td><td class="negative">-0.0044</td><td>0.0</td><td>84</td><td>7.1</td><td>0.0</td><td>Improving — 84 deaths, 0 frags</td></tr>
-<tr><td>00:09</td><td>85</td><td>2,176,000</td><td class="negative">-0.0043</td><td>1.0</td><td>95</td><td>7.1</td><td>0.0</td><td>Improving — 95 deaths, 1 frags</td></tr>
+<tr><td>06:48</td><td>20</td><td>512,000</td><td class="positive">0.0819</td><td>4.0</td><td>0</td><td>8.0</td><td>0.0</td><td>Getting kills! 4 frags, 0 deaths</td></tr>
+<tr><td>06:35</td><td>20</td><td>512,000</td><td class="positive">0.0809</td><td>0.0</td><td>0</td><td>7.4</td><td>0.0</td><td>Tracking enemy — step_r=0.0809, 0 deaths</td></tr>
+<tr><td>02:59</td><td>20</td><td>512,000</td><td class="positive">0.0190</td><td>6.0</td><td>0</td><td>7.6</td><td>0.0</td><td>Combat engaged! 6 frags, K/D=6.00</td></tr>
+<tr><td>02:40</td><td>20</td><td>512,000</td><td class="positive">0.0030</td><td>0.0</td><td>0</td><td>7.1</td><td>0.0</td><td>Near break-even — 0 deaths, 0 frags</td></tr>
+<tr><td>15:38</td><td>870</td><td>55,680,000</td><td class="negative">-0.0008</td><td>1.0</td><td>37</td><td>8.1</td><td>0.0</td><td>Improving — 37 deaths, 1 frags</td></tr>
+<tr><td>15:28</td><td>855</td><td>54,720,000</td><td class="negative">-0.0011</td><td>1.0</td><td>68</td><td>8.2</td><td>0.0</td><td>Improving — 68 deaths, 1 frags</td></tr>
+<tr><td>15:18</td><td>835</td><td>53,440,000</td><td class="negative">-0.0008</td><td>0.0</td><td>59</td><td>8.2</td><td>0.0</td><td>Improving — 59 deaths, 0 frags</td></tr>
+<tr><td>15:08</td><td>815</td><td>52,160,000</td><td class="negative">-0.0012</td><td>0.0</td><td>78</td><td>8.2</td><td>0.0</td><td>Improving — 78 deaths, 0 frags</td></tr>
+<tr><td>14:58</td><td>795</td><td>50,880,000</td><td class="negative">-0.0007</td><td>1.0</td><td>43</td><td>8.2</td><td>0.0</td><td>Improving — 43 deaths, 1 frags</td></tr>
+<tr><td>14:48</td><td>780</td><td>49,920,000</td><td class="negative">-0.0012</td><td>0.0</td><td>67</td><td>8.3</td><td>0.0</td><td>Improving — 67 deaths, 0 frags</td></tr>
+<tr><td>14:38</td><td>760</td><td>48,640,000</td><td class="negative">-0.0008</td><td>1.0</td><td>43</td><td>8.1</td><td>0.0</td><td>Improving — 43 deaths, 1 frags</td></tr>
+<tr><td>14:28</td><td>740</td><td>47,360,000</td><td class="negative">-0.0011</td><td>0.0</td><td>61</td><td>8.2</td><td>0.0</td><td>Improving — 61 deaths, 0 frags</td></tr>
+<tr><td>14:18</td><td>720</td><td>46,080,000</td><td class="negative">-0.0008</td><td>0.0</td><td>39</td><td>8.1</td><td>0.0</td><td>Improving — 39 deaths, 0 frags</td></tr>
+<tr><td>14:08</td><td>705</td><td>45,120,000</td><td class="negative">-0.0013</td><td>0.0</td><td>66</td><td>8.2</td><td>0.0</td><td>Improving — 66 deaths, 0 frags</td></tr>
+<tr><td>13:58</td><td>685</td><td>43,840,000</td><td class="negative">-0.0009</td><td>0.0</td><td>56</td><td>8.1</td><td>0.0</td><td>Improving — 56 deaths, 0 frags</td></tr>
+<tr><td>13:48</td><td>665</td><td>42,560,000</td><td class="negative">-0.0012</td><td>0.0</td><td>65</td><td>8.1</td><td>0.0</td><td>Improving — 65 deaths, 0 frags</td></tr>
+<tr><td>13:38</td><td>650</td><td>41,600,000</td><td class="negative">-0.0009</td><td>0.0</td><td>55</td><td>8.1</td><td>0.0</td><td>Improving — 55 deaths, 0 frags</td></tr>
+<tr><td>13:28</td><td>630</td><td>40,320,000</td><td class="negative">-0.0013</td><td>0.0</td><td>78</td><td>8.2</td><td>0.0</td><td>Improving — 78 deaths, 0 frags</td></tr>
+<tr><td>13:18</td><td>610</td><td>39,040,000</td><td class="negative">-0.0010</td><td>0.0</td><td>56</td><td>8.1</td><td>0.0</td><td>Improving — 56 deaths, 0 frags</td></tr>
+<tr><td>13:08</td><td>590</td><td>37,760,000</td><td class="negative">-0.0015</td><td>1.0</td><td>81</td><td>8.1</td><td>0.0</td><td>Improving — 81 deaths, 1 frags</td></tr>
+<tr><td>12:58</td><td>575</td><td>36,800,000</td><td class="negative">-0.0009</td><td>0.0</td><td>49</td><td>8.0</td><td>0.0</td><td>Improving — 49 deaths, 0 frags</td></tr>
+<tr><td>12:48</td><td>555</td><td>35,520,000</td><td class="negative">-0.0018</td><td>0.0</td><td>95</td><td>7.9</td><td>0.0</td><td>Improving — 95 deaths, 0 frags</td></tr>
+<tr><td>12:38</td><td>535</td><td>34,240,000</td><td class="negative">-0.0009</td><td>1.0</td><td>49</td><td>7.9</td><td>0.0</td><td>Improving — 49 deaths, 1 frags</td></tr>
+<tr><td>12:28</td><td>520</td><td>33,280,000</td><td class="negative">-0.0017</td><td>0.0</td><td>84</td><td>7.9</td><td>0.0</td><td>Improving — 84 deaths, 0 frags</td></tr>
+<tr><td>12:18</td><td>500</td><td>32,000,000</td><td class="negative">-0.0010</td><td>0.0</td><td>53</td><td>7.8</td><td>0.0</td><td>Improving — 53 deaths, 0 frags</td></tr>
+<tr><td>12:08</td><td>480</td><td>30,720,000</td><td class="negative">-0.0017</td><td>0.0</td><td>97</td><td>7.9</td><td>0.0</td><td>Improving — 97 deaths, 0 frags</td></tr>
+<tr><td>11:58</td><td>460</td><td>29,440,000</td><td class="negative">-0.0010</td><td>0.0</td><td>60</td><td>7.9</td><td>0.0</td><td>Improving — 60 deaths, 0 frags</td></tr>
+<tr><td>11:48</td><td>445</td><td>28,480,000</td><td class="negative">-0.0016</td><td>0.0</td><td>78</td><td>8.0</td><td>0.0</td><td>Improving — 78 deaths, 0 frags</td></tr>
+<tr><td>11:38</td><td>425</td><td>27,200,000</td><td class="negative">-0.0013</td><td>0.0</td><td>70</td><td>8.0</td><td>0.0</td><td>Improving — 70 deaths, 0 frags</td></tr>
+<tr><td>11:28</td><td>405</td><td>25,920,000</td><td class="negative">-0.0016</td><td>0.0</td><td>94</td><td>7.9</td><td>0.0</td><td>Improving — 94 deaths, 0 frags</td></tr>
 
 </table>
 </div>
@@ -133,9 +133,9 @@ canvas { background: #151520; border-radius: 8px; padding: 10px; }
 const canvas = document.getElementById('chart');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
-const labels = ["22:48", "22:48", "22:58", "23:10", "23:20", "23:30", "23:40", "23:59", "00:09", "00:19", "00:29", "00:39", "00:49", "00:59", "01:18", "01:41", "01:51", "02:15", "02:36", "03:04", "03:14", "03:24", "03:40", "04:44", "05:05", "05:15", "05:32", "05:48", "05:58", "06:13", "06:23", "06:33", "06:43", "06:53", "07:03", "07:13", "07:23", "07:33"];
-const sr = [-0.003, -0.003, -0.0023, 0.0162, 0.0005, -0.0016, -0.0021, 0.0079, -0.0043, -0.0044, -0.0038, -0.0041, -0.0028, -0.0038, -0.0057, -0.0042, 0.0143, 0.0043, 0.0051, 0.0039, 0.0068, 0.0101, 0.0046, 0.0148, 0.0658, 0.0703, -0.0044, -0.0039, -0.0045, -0.0032, -0.0041, -0.0032, -0.0034, -0.0031, -0.0031, -0.0001, -0.0029, -0.0038];
-const frags = [0, 0, 0, 229, 1, 2, 0, 239, 1, 0, 3, 3, 0, 2, 0, 3, 13, 25, 3, 8, 1, 1, 5, 11, 7, 9, 9, 19, 4, 21, 9, 16, 17, 14, 13, 97, 12, 11];
+const labels = ["06:13", "06:23", "06:33", "06:43", "06:53", "07:03", "07:13", "07:23", "07:33", "07:58", "08:08", "08:18", "08:28", "08:38", "08:48", "08:58", "09:08", "09:18", "09:28", "09:38", "09:48", "09:58", "10:08", "10:18", "10:28", "10:38", "10:48", "10:58", "11:08", "11:18", "11:28", "11:38", "11:48", "11:58", "12:08", "12:18", "12:28", "12:38", "12:48", "12:58", "13:08", "13:18", "13:28", "13:38", "13:48", "13:58", "14:08", "14:18", "14:28", "14:38", "14:48", "14:58", "15:08", "15:18", "15:28", "15:38", "02:40", "02:59", "06:35", "06:48"];
+const sr = [-0.0032, -0.0041, -0.0032, -0.0034, -0.0031, -0.0031, -0.0001, -0.0029, -0.0038, -0.003, -0.0037, -0.0021, -0.0029, -0.0019, -0.0029, -0.0016, -0.0024, -0.0015, -0.0022, -0.0012, -0.0018, -0.0014, -0.002, -0.0014, -0.0019, -0.0012, -0.0016, -0.0012, -0.0019, -0.0013, -0.0016, -0.0013, -0.0016, -0.001, -0.0017, -0.001, -0.0017, -0.0009, -0.0018, -0.0009, -0.0015, -0.001, -0.0013, -0.0009, -0.0012, -0.0009, -0.0013, -0.0008, -0.0011, -0.0008, -0.0012, -0.0007, -0.0012, -0.0008, -0.0011, -0.0008, 0.003, 0.019, 0.0809, 0.0819];
+const frags = [21, 9, 16, 17, 14, 13, 97, 12, 11, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 6, 0, 4];
 
 function drawLine(data, color, label, yMin, yMax) {
     if (data.length < 2) return;

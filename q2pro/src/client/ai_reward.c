@@ -1,21 +1,19 @@
 /*
  * ai_reward.c -- Compute per-frame reward from game state deltas
  *
- * V3.0 Stage 1: Aim-only training against stationary dummy.
- * Smooth gradient rewards — the closer the crosshair, the better.
+ * V3.0 Stage 1: Hit-only rewards + auxiliary aim supervision.
+ * Aim direction learned via MSE loss in Python (train.py).
+ * RL reward only for actual hits — forces NN to tighten aim std.
  *
- *   +aim_dot * 0.05   facing reward (gentle nudge toward enemy)
- *   +aim_dot² * 0.15  precision reward (sharp bonus for dead-on aim)
- *   +aim_dot² * 0.25  shooting reward (only worth it when aim is precise)
- *   +damage/50        damage dealt
+ *   +damage/50        damage dealt (actual hit confirmation)
  *   +1.0              per frag
  *   -1.0              per death
+ *   Aim direction learned via auxiliary supervision loss in Python.
+ *   RL reward only for actual hits — forces NN to tighten aim std.
  */
 
 #include "client.h"
 #include "ai_bridge.h"
-
-#include <math.h>
 
 static int prev_frags;
 static int prev_health;
@@ -26,7 +24,6 @@ float AI_Reward_Compute(void)
 {
     const player_state_t *ps = &cl.frame.ps;
     float reward = 0.0f;
-    int i;
 
     if (!reward_initialized) {
         prev_frags = ps->stats[STAT_FRAGS];
@@ -53,58 +50,7 @@ float AI_Reward_Compute(void)
         reward -= 1.0f;
     }
 
-    // === ENEMY DETECTION ===
-
-    bool enemy_visible = false;
-    float enemy_dist = 99999.0f;
-    float enemy_dx = 0, enemy_dy = 0, enemy_dz = 0;
-    if (cur_pm_type == PM_NORMAL && cur_health > 0) {
-        for (i = 0; i < cl.frame.numEntities; i++) {
-            int k = (cl.frame.firstEntity + i) & PARSE_ENTITIES_MASK;
-            const centity_state_t *es = &cl.entityStates[k];
-            if (es->number >= 1 && es->number <= cl.maxclients &&
-                es->number != cl.frame.clientNum + 1) {
-                enemy_visible = true;
-                enemy_dx = es->s.origin[0] - cl.predicted_origin[0];
-                enemy_dy = es->s.origin[1] - cl.predicted_origin[1];
-                enemy_dz = es->s.origin[2] - cl.predicted_origin[2];
-                enemy_dist = sqrtf(enemy_dx*enemy_dx + enemy_dy*enemy_dy + enemy_dz*enemy_dz);
-                break;
-            }
-        }
-    }
-
-    // Aim dot product: 1.0 = perfect aim, 0 = 90°, -1.0 = behind
-    float aim_dot = -1.0f;
-    if (enemy_visible && enemy_dist > 1.0f) {
-        float yaw_r = ps->viewangles[1] * (M_PI / 180.0f);
-        float pitch_r = ps->viewangles[0] * (M_PI / 180.0f);
-        float vx2 = cosf(pitch_r) * cosf(yaw_r);
-        float vy2 = cosf(pitch_r) * sinf(yaw_r);
-        float vz2 = -sinf(pitch_r);
-        float inv_d = 1.0f / enemy_dist;
-        aim_dot = vx2 * (enemy_dx * inv_d) + vy2 * (enemy_dy * inv_d) + vz2 * (enemy_dz * inv_d);
-    }
-
-    // === AIM REWARDS (smooth gradient) ===
-
-    if (enemy_visible && cur_pm_type == PM_NORMAL && cur_health > 0) {
-        float facing = aim_dot > 0.0f ? aim_dot : 0.0f;  // 0 to 1
-        float precise = facing * facing;  // squared: near-miss ≈ 0, dead-on ≈ 1
-
-        // Facing reward: gentle nudge toward enemy
-        reward += facing * 0.05f;
-
-        // Precision reward: sharp bonus for actually aiming AT enemy
-        reward += precise * 0.15f;
-
-        // Shooting reward: only worth it when aim is precise
-        if (q2ai_shared_action.attack) {
-            reward += precise * 0.25f;
-        }
-    }
-
-    // Damage dealt reward
+    // Damage dealt reward — only actual hits count
     int damage_dealt = ps->stats[STAT_FLASHES];
     if (damage_dealt > 0) {
         reward += damage_dealt / 50.0f;

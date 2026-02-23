@@ -328,8 +328,13 @@ class ActorCritic(nn.Module):
         binary_logits = actor_out[..., self.CONTINUOUS_DIM:self.CONTINUOUS_DIM + self.BINARY_DIM]
         weapon_logits = actor_out[..., self.CONTINUOUS_DIM + self.BINARY_DIM:]
 
-        # Distributions
-        cont_std = torch.clamp(self.action_log_std, -2.0, 0.5).exp()
+        # Distributions — tighter clamp on yaw/pitch std for precise aim
+        log_std_clamped = self.action_log_std.clone()
+        log_std_clamped[0] = torch.clamp(self.action_log_std[0], -4.0, -2.5)  # yaw: std 0.018-0.08 (max ±0.8°)
+        log_std_clamped[1] = torch.clamp(self.action_log_std[1], -4.0, -2.5)  # pitch: std 0.018-0.08 (max ±0.4°)
+        log_std_clamped[2] = torch.clamp(self.action_log_std[2], -2.0, 0.5)   # forward: normal range
+        log_std_clamped[3] = torch.clamp(self.action_log_std[3], -2.0, 0.5)   # side: normal range
+        cont_std = log_std_clamped.exp()
         cont_dist = Normal(cont_means, cont_std)
         jump_dist = Bernoulli(logits=binary_logits[..., 0])
         crouch_dist = Bernoulli(logits=binary_logits[..., 1])
