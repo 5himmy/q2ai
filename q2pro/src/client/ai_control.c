@@ -67,6 +67,7 @@ void AI_Control_Frame(void)
     // Auto-connect if disconnected
     if (q2ai_autoconnect->integer && cls.state == ca_disconnected) {
         joined = false;
+        readied = false;
         join_attempts = 0;
         Cbuf_AddText(&cmd_buffer, va("connect %s\n", q2ai_server->string));
         return;
@@ -86,10 +87,11 @@ void AI_Control_Frame(void)
             Com_Printf("Q2AI: Spawned into game (health=%d, name=%s)\n",
                        ps->stats[STAT_HEALTH], q2ai_name->string);
         }
-        // Auto-ready: keep sending until match starts (every 2s)
+        // Auto-ready: send once, then stop
         if (!readied && now - ready_time > 2000) {
             Cbuf_AddText(&cmd_buffer, "cmd ready\n");
             ready_time = now;
+            readied = true;
             Com_Printf("Q2AI: Sent ready command\n");
         }
         // Request inventory periodically (server only sends on request)
@@ -101,6 +103,10 @@ void AI_Control_Frame(void)
     }
 
     // In spectator mode — try to join
+    if (joined && (pm_type == PM_SPECTATOR || pm_type == PM_FREEZE)) {
+        joined = false;
+        readied = false;
+    }
     if (!joined && (pm_type == PM_SPECTATOR || pm_type == PM_FREEZE)) {
         if (now - join_time > CONTROL_DELAY) {
             const char *team = q2ai_team->string;
