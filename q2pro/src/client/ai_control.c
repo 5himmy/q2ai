@@ -83,6 +83,7 @@ void AI_Control_Frame(void)
     if (pm_type == PM_NORMAL && ps->stats[STAT_HEALTH] > 0) {
         if (!joined) {
             joined = true;
+            ready_time = now;  // delay ready command to avoid rate limit
             Cbuf_AddText(&cmd_buffer, va("set name \"%s\"\n", q2ai_name->string));
             Com_Printf("Q2AI: Spawned into game (health=%d, name=%s)\n",
                        ps->stats[STAT_HEALTH], q2ai_name->string);
