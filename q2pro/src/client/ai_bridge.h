@@ -60,6 +60,7 @@ typedef struct {
     int32_t     enemy_visible;      // 1 if enemy is in current frame
     int32_t     enemy_client_num;   // client number of enemy, -1 if none
     float       enemy_last_seen_age;  // milliseconds since last seen/heard, 0 if visible now
+    int32_t     enemy_weapon;       // WEAP_* index (1-11) from skinnum, 0 if unknown
 
     // Combat feedback
     int32_t     damage_dealt;       // from STAT_FLASHES, resets each frame

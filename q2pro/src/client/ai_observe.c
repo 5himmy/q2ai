@@ -17,6 +17,12 @@ static vec3_t   s_last_enemy_origin;
 static int      s_last_enemy_servertime;
 static bool     s_enemy_ever_seen;
 
+// Debug stats (printed every 5 seconds)
+static unsigned s_debug_time;
+static int      s_debug_frames;
+static int      s_debug_enemy_visible;
+static int      s_debug_entities_total;
+
 void AI_OnEnemySound(const vec3_t origin)
 {
     VectorCopy(origin, s_last_enemy_origin);
@@ -100,12 +106,35 @@ void AI_Observe_Update(ai_observation_t *obs)
             VectorCopy(es->s.angles, obs->enemy_angles);
             obs->enemy_visible = 1;
             obs->enemy_client_num = es->number - 1;
+            obs->enemy_weapon = (es->s.skinnum >> 8) & 0xff;  // WEAP_* index
         }
 
         count++;
     }
 
     obs->num_entities = count;
+
+    // Debug: periodic enemy detection stats (every 5s)
+    s_debug_frames++;
+    s_debug_entities_total += cl.frame.numEntities;
+    if (obs->enemy_visible)
+        s_debug_enemy_visible++;
+    if (cl.servertime - s_debug_time > 5000) {
+        Com_Printf("Q2AI [OBS] %d frames: enemy_visible=%d/%d (%.0f%%), "
+                   "avg_ents=%.1f, maxclients=%d, clientNum=%d, "
+                   "enemy_pos=(%.0f %.0f %.0f)\n",
+                   s_debug_frames, s_debug_enemy_visible, s_debug_frames,
+                   s_debug_frames ? 100.0f * s_debug_enemy_visible / s_debug_frames : 0,
+                   s_debug_frames ? (float)s_debug_entities_total / s_debug_frames : 0,
+                   cl.maxclients, cl.frame.clientNum,
+                   obs->enemy_visible ? obs->enemy_origin[0] : s_last_enemy_origin[0],
+                   obs->enemy_visible ? obs->enemy_origin[1] : s_last_enemy_origin[1],
+                   obs->enemy_visible ? obs->enemy_origin[2] : s_last_enemy_origin[2]);
+        s_debug_time = cl.servertime;
+        s_debug_frames = 0;
+        s_debug_enemy_visible = 0;
+        s_debug_entities_total = 0;
+    }
 
     // Persist last-known enemy position
     if (obs->enemy_visible) {

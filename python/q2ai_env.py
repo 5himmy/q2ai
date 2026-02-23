@@ -31,7 +31,7 @@ from q2ai_structs import (
 )
 
 # Observation vector size
-OBS_DIM = 110
+OBS_DIM = 111
 
 # Observation vector layout:
 #  0-2:   origin / 4096                          (self position)
@@ -50,18 +50,19 @@ OBS_DIM = 110
 #  42-44: enemy relative position / 4096
 #  45:    enemy distance / 4096
 #  46-47: sin(angle_to_enemy), cos(angle_to_enemy)
+#  48:    enemy_weapon / 11 (WEAP_* index normalized)
 #  --- Nearest entities (8 slots x 5) ---
-#  48-87: entities (8 slots x 5: rel_x, rel_y, rel_z, is_active, entity_type_norm)
+#  49-88: entities (8 slots x 5: rel_x, rel_y, rel_z, is_active, entity_type_norm)
 #  --- Game ---
-#  88:    frags / 20
-#  89:    enemy_frags / 20  (TODO: needs scoreboard data)
-#  90:    match_time_frac   (TODO: needs match timer)
-#  91:    damage_dealt / 100 (from STAT_FLASHES, per frame)
+#  89:    frags / 20
+#  90:    enemy_frags / 20  (TODO: needs scoreboard data)
+#  91:    match_time_frac   (TODO: needs match timer)
+#  92:    damage_dealt / 100 (from STAT_FLASHES, per frame)
 #  --- Wall raycasts (18 rays) ---
-#  92-99:  8 horizontal at eye height (fwd, fwd-R, R, back-R, back, back-L, L, fwd-L)
-#  100:    floor distance
-#  101:    ceiling distance
-#  102-109: 8 horizontal at knee height (same directions, detects low obstacles)
+#  93-100: 8 horizontal at eye height (fwd, fwd-R, R, back-R, back, back-L, L, fwd-L)
+#  101:    floor distance
+#  102:    ceiling distance
+#  103-110: 8 horizontal at knee height (same directions, detects low obstacles)
 #  All values are trace fraction [0.0=touching, 1.0=clear] over 1024 units
 
 
@@ -202,6 +203,9 @@ class Q2AIEnv(gym.Env):
             obs[46] = math.sin(angle_to_enemy)
             obs[47] = math.cos(angle_to_enemy)
 
+        # Enemy weapon (WEAP_* 1-11, normalized)
+        obs[48] = o.enemy_weapon / 11.0
+
         # Entities: 8 nearest, 5 features each (rel_x, rel_y, rel_z, is_active, type)
         entities = []
         for j in range(o.num_entities):
@@ -217,7 +221,7 @@ class Q2AIEnv(gym.Env):
         # Sort by distance, take 8 nearest
         entities.sort(key=lambda x: x[0])
         for i, (dist, rel, etype) in enumerate(entities[:8]):
-            base = 48 + i * 5
+            base = 49 + i * 5
             obs[base] = rel[0] / 4096.0
             obs[base + 1] = rel[1] / 4096.0
             obs[base + 2] = rel[2] / 4096.0
@@ -225,14 +229,14 @@ class Q2AIEnv(gym.Env):
             obs[base + 4] = etype
 
         # Game state
-        obs[88] = o.frags / 20.0
-        obs[89] = 0.0  # enemy frags (TODO: scoreboard)
-        obs[90] = 0.0  # match time fraction (TODO)
-        obs[91] = o.damage_dealt / 100.0  # damage dealt this frame
+        obs[89] = o.frags / 20.0
+        obs[90] = 0.0  # enemy frags (TODO: scoreboard)
+        obs[91] = 0.0  # match time fraction (TODO)
+        obs[92] = o.damage_dealt / 100.0  # damage dealt this frame
 
         # Wall raycasts (18 rays, already normalized 0.0-1.0 from C side)
         for i in range(18):
-            obs[92 + i] = o.wall_distances[i]
+            obs[93 + i] = o.wall_distances[i]
 
         return obs
 
