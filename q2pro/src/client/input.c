@@ -614,12 +614,22 @@ void CL_UpdateCmd(int msec)
     // AI mode: apply action from shared memory instead of keyboard/mouse
     AI_Input_Apply(&q2ai_shared_action);
 
-    cl.localmove[0] = q2ai_shared_action.forwardmove * 400.0f;
-    cl.localmove[1] = q2ai_shared_action.sidemove * 400.0f;
-    if (q2ai_shared_action.jump)
-        cl.localmove[2] = 400.0f;
-    else if (q2ai_shared_action.crouch)
-        cl.localmove[2] = -400.0f;
+    // q2ai_nomove: lock all movement (aim-only training)
+    static cvar_t *q2ai_nomove;
+    if (!q2ai_nomove)
+        q2ai_nomove = Cvar_Get("q2ai_nomove", "0", 0);
+    if (q2ai_nomove->integer) {
+        cl.localmove[0] = 0;
+        cl.localmove[1] = 0;
+        cl.localmove[2] = 0;
+    } else {
+        cl.localmove[0] = q2ai_shared_action.forwardmove * 400.0f;
+        cl.localmove[1] = q2ai_shared_action.sidemove * 400.0f;
+        if (q2ai_shared_action.jump)
+            cl.localmove[2] = 400.0f;
+        else if (q2ai_shared_action.crouch)
+            cl.localmove[2] = -400.0f;
+    }
 
     CL_ClampSpeed(cl.localmove);
     CL_ClampPitch();
@@ -795,7 +805,12 @@ void CL_FinalizeCmd(void)
     cl.cmd.forwardmove = cl.localmove[0];
     cl.cmd.sidemove = cl.localmove[1];
     cl.cmd.upmove = cl.localmove[2];
-    cl.cmd.impulse = q2ai_shared_action.weapon;
+    {
+        static cvar_t *q2ai_nomove2;
+        if (!q2ai_nomove2)
+            q2ai_nomove2 = Cvar_Get("q2ai_nomove", "0", 0);
+        cl.cmd.impulse = q2ai_nomove2->integer ? 0 : q2ai_shared_action.weapon;
+    }
 #else
     // rebuild the movement vector
     VectorClear(move);

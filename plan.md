@@ -177,8 +177,26 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Sends `g_bot_skill N` via rcon to all servers on skill change
   - All tuner values logged to CSV and console (`[TUNER]` lines)
 
+#### Completed (V2.9):
+- [x] V2.9 Bot Behavior Cvars — `g_bot_nomove` and `g_bot_noshoot`
+  - `g_bot_nomove 1`: bot spawns and stands still (position/velocity restored after AI tick)
+  - `g_bot_noshoot 1`: bot moves but never fires (BUTTON_ATTACK cleared after AI tick)
+  - Both can be combined for a stationary target dummy
+  - Toggleable live via rcon, no restart needed
+  - Implemented in both opentdm and zigock-q2
+
 #### In Progress:
-- [ ] V2.8 training: 250 instances on hop, adaptive tuning active
+- [ ] V3.0 Training Curriculum — teach AI to shoot first
+  - Stage 1: `g_bot_nomove 1` + `g_bot_noshoot 1` + `q2ai_nomove 1` — stationary dummy, KaaN learns mouse aiming only
+    - Instagib mode (`g_gamemode 1`): railgun only, one-shot kill, hitscan
+    - Infinite ammo (`dmflags 8192`)
+    - `q2ai_nomove` cvar: locks all movement + weapon switching in headless client
+    - Smooth gradient rewards: `max(0, aim_dot) * 0.02` facing + `max(0, aim_dot) * 0.05` shooting
+    - No penalties — shooting away from enemy just gives 0, not negative
+    - Damage dealt bonus: `damage / 50`
+  - Stage 2: `g_bot_nomove 1` + `g_bot_noshoot 0` — stationary bot shoots back, AI learns combat under fire
+  - Stage 3: `g_bot_nomove 0` + `g_bot_noshoot 0` — full bot behavior, AI learns movement + combat
+  - Stages can be automated via `AdaptiveTuner` rcon commands based on K/D thresholds
 
 #### Next:
 - [ ] Multi-client per server (4 KaaN per server, cut 250 servers to 63)
@@ -335,6 +353,16 @@ cd python
 | `chdtm/*.chn` | 43+ waypoint chain files |
 | `g_local.h` | `zgcl_t`, `ENT_IS_BOT()` macro |
 | `g_main.c` | Bot auto-ready in warmup |
+
+**Bot cvars:**
+
+| Cvar | Default | Description |
+|------|---------|-------------|
+| `g_spawn_bots` | 0 | Number of bots to auto-spawn on map load |
+| `g_bot_skill` | 5 | Bot skill level (1-10, original 3ZB2 presets) |
+| `g_bot_config` | "" | Section name in `botconfig.cfg` for per-bot settings |
+| `g_bot_nomove` | 0 | Bots stand still (AI runs but position restored) |
+| `g_bot_noshoot` | 0 | Bots never fire (BUTTON_ATTACK cleared after AI tick) |
 
 ## 6. Technical Notes
 

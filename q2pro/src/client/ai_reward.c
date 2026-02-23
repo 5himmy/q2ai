@@ -1,18 +1,14 @@
 /*
  * ai_reward.c -- Compute per-frame reward from game state deltas
  *
- * V2.0: Simplified rewards — core combat + critical anti-suicide signals.
- * Fewer signals = lower value loss = better learning.
+ * V3.0 Stage 1: Aim-only training against stationary dummy.
+ * Smooth gradient rewards — the closer the crosshair, the better.
  *
- *   +1.0  per frag
- *   -1.0  per death
- *   -damage/100 for damage taken
- *   +damage/100 for damage dealt (enemy in FOV)
- *   -0.15  self-splash penalty (shooting wall within 120u)
- *   -0.02  blaster penalty (has better weapon but won't switch)
- *   -0.01  stuck penalty (speed < 20)
- *   +0.1   health/armor pickup
- *   +0.15  weapon pickup
+ *   +aim_dot * 0.02   facing reward (continuous, any facing toward enemy)
+ *   +aim_dot * 0.05   shooting reward (continuous, better aim = more reward)
+ *   +damage/50        damage dealt
+ *   +1.0              per frag
+ *   -1.0              per death
  */
 
 #include "client.h"
@@ -22,11 +18,7 @@
 
 static int prev_frags;
 static int prev_health;
-static int prev_armor;
 static int prev_pm_type;
-static int prev_inventory[MAX_ITEMS];
-static float prev_nearest_item_dist;
-static float prev_enemy_dist;
 static bool reward_initialized;
 
 float AI_Reward_Compute(void)
@@ -38,21 +30,16 @@ float AI_Reward_Compute(void)
     if (!reward_initialized) {
         prev_frags = ps->stats[STAT_FRAGS];
         prev_health = ps->stats[STAT_HEALTH];
-        prev_armor = ps->stats[STAT_ARMOR];
         prev_pm_type = ps->pmove.pm_type;
-        prev_nearest_item_dist = 99999.0f;
-        prev_enemy_dist = 99999.0f;
-        memcpy(prev_inventory, cl.inventory, sizeof(prev_inventory));
         reward_initialized = true;
         return 0.0f;
     }
 
     int cur_frags = ps->stats[STAT_FRAGS];
     int cur_health = ps->stats[STAT_HEALTH];
-    int cur_armor = ps->stats[STAT_ARMOR];
     int cur_pm_type = ps->pmove.pm_type;
 
-    // === COMBAT REWARDS (primary) ===
+    // === COMBAT REWARDS ===
 
     // Frag reward
     if (cur_frags > prev_frags) {
@@ -65,15 +52,8 @@ float AI_Reward_Compute(void)
         reward -= 1.0f;
     }
 
-    // Damage taken penalty
-    if (cur_health < prev_health && prev_health > 0 && cur_pm_type == PM_NORMAL) {
-        int damage = prev_health - cur_health;
-        reward -= damage / 100.0f;
-    }
+    // === ENEMY DETECTION ===
 
-    // === ENEMY DETECTION (needed before damage reward) ===
-
-    // Find enemy player
     bool enemy_visible = false;
     float enemy_dist = 99999.0f;
     float enemy_dx = 0, enemy_dy = 0, enemy_dz = 0;
@@ -93,8 +73,7 @@ float AI_Reward_Compute(void)
         }
     }
 
-    // Compute aim dot product (how close crosshair is to enemy)
-    // dot=1.0 = perfect aim, dot=0.707 = 45°, dot=0 = 90°, dot<0 = behind
+    // Aim dot product: 1.0 = perfect aim, 0 = 90°, -1.0 = behind
     float aim_dot = -1.0f;
     if (enemy_visible && enemy_dist > 1.0f) {
         float yaw_r = ps->viewangles[1] * (M_PI / 180.0f);
@@ -105,84 +84,31 @@ float AI_Reward_Compute(void)
         float inv_d = 1.0f / enemy_dist;
         aim_dot = vx2 * (enemy_dx * inv_d) + vy2 * (enemy_dy * inv_d) + vz2 * (enemy_dz * inv_d);
     }
-    bool enemy_in_fov = (aim_dot > 0.707f);  // cos(45°)
 
-    // Damage dealt reward (from STAT_FLASHES, set by opentdm)
+    // === AIM REWARDS (smooth gradient) ===
+
+    if (enemy_visible && cur_pm_type == PM_NORMAL && cur_health > 0) {
+        float facing = aim_dot > 0.0f ? aim_dot : 0.0f;  // 0 to 1
+
+        // Facing reward: any turn toward enemy is good, closer = better
+        reward += facing * 0.02f;
+
+        // Shooting reward: shooting while facing enemy, scaled by aim quality
+        if (q2ai_shared_action.attack) {
+            reward += facing * 0.05f;
+        }
+    }
+
+    // Damage dealt reward
     int damage_dealt = ps->stats[STAT_FLASHES];
-    if (damage_dealt > 0 && enemy_in_fov) {
-        reward += damage_dealt / 100.0f;
+    if (damage_dealt > 0) {
+        reward += damage_dealt / 50.0f;
     }
-
-    // === MOVEMENT ===
-
-    if (cur_pm_type == PM_NORMAL && cur_health > 0) {
-        float vx = cl.predicted_velocity[0];
-        float vy = cl.predicted_velocity[1];
-        float speed = sqrtf(vx * vx + vy * vy);
-
-        // Stuck penalty
-        if (speed < 20.0f) {
-            reward -= 0.01f;
-        }
-    }
-
-    // === ITEM REWARDS (reduced) ===
-
-    // Health/armor pickup bonus
-    if (cur_health > prev_health && cur_health > 0 && prev_health > 0) {
-        reward += 0.1f;
-    }
-    if (cur_armor > prev_armor) {
-        reward += 0.1f;
-    }
-
-    // Weapon pickup bonus
-    for (i = 0; i < MAX_ITEMS; i++) {
-        if (cl.inventory[i] > prev_inventory[i]) {
-            reward += 0.15f;
-            break;
-        }
-    }
-
-    // Self-splash penalty: shooting when too close to a wall causes self-damage
-    // Cast a short forward ray to check wall proximity
-    if (cur_pm_type == PM_NORMAL && cur_health > 0 && q2ai_shared_action.attack && cl.bsp && cl.bsp->nodes) {
-        float yaw_r = ps->viewangles[1] * (M_PI / 180.0f);
-        float pitch_r = ps->viewangles[0] * (M_PI / 180.0f);
-        vec3_t ray_start, ray_end;
-        trace_t tr;
-        VectorCopy(cl.predicted_origin, ray_start);
-        ray_start[2] += 22.0f;
-        ray_end[0] = ray_start[0] + cosf(pitch_r) * cosf(yaw_r) * 120.0f;
-        ray_end[1] = ray_start[1] + cosf(pitch_r) * sinf(yaw_r) * 120.0f;
-        ray_end[2] = ray_start[2] - sinf(pitch_r) * 120.0f;
-        CM_BoxTrace(&tr, ray_start, ray_end, vec3_origin, vec3_origin,
-                    cl.bsp->nodes, MASK_SOLID, cl.csr.extended);
-        if (tr.fraction < 1.0f) {
-            reward -= 0.15f;  // wall within 120u (rocket splash radius) in aim direction
-        }
-    }
-
-    // Blaster penalty: if holding blaster (item 7) but owns any better weapon
-    if (cur_pm_type == PM_NORMAL && cur_health > 0) {
-        int selected = ps->stats[STAT_SELECTED_ITEM];
-        if (selected == 7) {
-            if (cl.inventory[8] || cl.inventory[9] || cl.inventory[10] ||
-                cl.inventory[11] || cl.inventory[13] || cl.inventory[14] ||
-                cl.inventory[15] || cl.inventory[16]) {
-                reward -= 0.02f;
-            }
-        }
-    }
-
-    prev_enemy_dist = enemy_visible ? enemy_dist : 99999.0f;
 
     // Update previous state
     prev_frags = cur_frags;
     prev_health = cur_health;
-    prev_armor = cur_armor;
     prev_pm_type = cur_pm_type;
-    memcpy(prev_inventory, cl.inventory, sizeof(prev_inventory));
 
     return reward;
 }
