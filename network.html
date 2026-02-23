@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>KaaN V2.5 Neural Network Visualizer</title>
+<title>KaaN V3.0 Neural Network Visualizer</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -163,8 +163,8 @@ tr:hover {
 </head>
 <body>
 
-<h1>KaaN V2.5 -- Neural Network Visualizer</h1>
-<p class="subtitle">Model: model_100.pt | Generated: 2026-02-23 08:48:48 | OBS_DIM: 113 | Grouped Encoder + Entity Attention + Fourier Position</p>
+<h1>KaaN V3.0 -- Neural Network Visualizer</h1>
+<p class="subtitle">Model: model_100.pt | Generated: 2026-02-23 09:05:38 | OBS_DIM: 113 | Grouped Encoder + Entity Attention + Fourier Position</p>
 
 <div class="stat-bar">
   <div class="stat-item"><div class="val">1,206,775</div><div class="lbl">Total Parameters</div></div>
@@ -213,7 +213,7 @@ tr:hover {
   </filter>
 </defs>
 <rect width="1200" height="780" fill="#0d0d15" rx="10"/>
-<text x="600" y="30" text-anchor="middle" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="14">KaaN V2.5 — Grouped Encoder + Entity Attention + Fourier Position</text>
+<text x="600" y="30" text-anchor="middle" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="14">KaaN V3.0 — Grouped Encoder + Entity Attention + Aim Supervision</text>
 <rect x="30" y="60" width="100" height="40" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
 <text x="80.0" y="76.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Observation</text>
 <text x="80.0" y="90.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">113 dims</text>
@@ -221,14 +221,14 @@ tr:hover {
 <line x1="130" y1="80" x2="170" y2="70" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="170" y="50" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
 <text x="240.0" y="68.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Self State</text>
-<text x="240.0" y="82.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">pos(3)+vel+ang+stats+alive</text>
-<text x="240.0" y="45" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">14 raw</text>
+<text x="240.0" y="82.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">pos+vel+ang+stats+alive+walls</text>
+<text x="240.0" y="45" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">32 raw</text>
 <rect x="180" y="96" width="120" height="18" rx="3" fill="url(#gFourier)" opacity="0.7"/>
 <text x="240" y="109" text-anchor="middle" fill="#fff" font-family="monospace" font-size="9">Fourier pos(3→27)</text>
 <line x1="310" y1="72" x2="340" y2="72" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="340" y="50" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
 <text x="400.0" y="68.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Self Encoder</text>
-<text x="400.0" y="82.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(38→96)+ReLU</text>
+<text x="400.0" y="82.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(56→96)+ReLU</text>
 <text x="400.0" y="45" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">96 dims</text>
 <line x1="130" y1="80" x2="170" y2="140" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="170" y="120" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
@@ -243,12 +243,12 @@ tr:hover {
 <line x1="130" y1="80" x2="170" y2="198" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="170" y="178" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
 <text x="240.0" y="196.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Enemy</text>
-<text x="240.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">vis+rel_xyz+dist+angle</text>
-<text x="240.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">7 dims</text>
+<text x="240.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">vis+xyz+dist+ang+wep+aim</text>
+<text x="240.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">10 dims</text>
 <line x1="310" y1="200" x2="340" y2="200" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="340" y="178" width="120" height="44" rx="6" fill="url(#gActor)" filter="url(#shadow)" opacity="0.9"/>
 <text x="400.0" y="196.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Enemy Encoder</text>
-<text x="400.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(7→64)+ReLU</text>
+<text x="400.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(10→64)+ReLU</text>
 <text x="400.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">64 dims</text>
 <line x1="130" y1="80" x2="170" y2="256" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="170" y="236" width="140" height="44" rx="6" fill="url(#gEntity)" filter="url(#shadow)" opacity="0.9"/>
@@ -265,10 +265,10 @@ tr:hover {
 <line x1="130" y1="80" x2="170" y2="326" stroke="#8e44ad" stroke-width="1.5" opacity="0.6"/>
 <rect x="170" y="306" width="140" height="44" rx="6" fill="url(#gInput)" filter="url(#shadow)" opacity="0.9"/>
 <text x="240.0" y="324.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Game State</text>
-<text x="240.0" y="338.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">frags+enemy+time</text>
-<text x="240.0" y="301" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">3 dims</text>
+<text x="240.0" y="338.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">frags+enemy+time+dmg</text>
+<text x="240.0" y="301" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">4 dims</text>
 <line x1="310" y1="328" x2="460" y2="328" stroke="#666" stroke-width="1.5" opacity="0.6"/>
-<text x="400" y="322" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">passthrough (3)</text>
+<text x="400" y="322" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">passthrough (4)</text>
 <line x1="460" y1="72" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
 <line x1="460" y1="142" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
 <line x1="460" y1="200" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
@@ -276,8 +276,8 @@ tr:hover {
 <line x1="460" y1="328" x2="500" y2="200" stroke="#555" stroke-width="1.5" opacity="0.6"/>
 <rect x="500" y="178" width="130" height="44" rx="6" fill="url(#gFusion)" filter="url(#shadow)" opacity="0.9"/>
 <text x="565.0" y="196.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Fusion Layer 1</text>
-<text x="565.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(291→256)+ReLU</text>
-<text x="565.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">291→256</text>
+<text x="565.0" y="210.0" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-family="Segoe UI,system-ui,sans-serif" font-size="10">Linear(292→256)+ReLU</text>
+<text x="565.0" y="173" text-anchor="middle" fill="#999" font-family="monospace" font-size="9">292→256</text>
 <line x1="565" y1="222" x2="565" y2="234" stroke="#555" stroke-width="1.5" opacity="0.6"/>
 <rect x="500" y="234" width="130" height="44" rx="6" fill="url(#gFusion)" filter="url(#shadow)" opacity="0.9"/>
 <text x="565.0" y="252.0" text-anchor="middle" fill="#fff" font-family="Segoe UI,system-ui,sans-serif" font-size="12" font-weight="bold">Fusion Layer 2</text>
@@ -325,11 +325,11 @@ tr:hover {
 <text x="770" y="348" text-anchor="middle" fill="#666" font-family="Segoe UI,system-ui,sans-serif" font-size="11" font-style="italic">Separate heads</text>
 <text x="40" y="520" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Parameter Counts</text>
 <text x="40" y="540" fill="#e74c3c" font-family="monospace" font-size="11">Fourier Enc: 0</text>
-<text x="420" y="540" fill="#3a7bd5" font-family="monospace" font-size="11">Self Enc (38→96): 5,472</text>
+<text x="420" y="540" fill="#3a7bd5" font-family="monospace" font-size="11">Self Enc (56→96): 5,472</text>
 <text x="800" y="540" fill="#3a7bd5" font-family="monospace" font-size="11">Inv Enc (27→64): 1,792</text>
-<text x="40" y="560" fill="#3a7bd5" font-family="monospace" font-size="11">Enemy Enc (7→64): 704</text>
+<text x="40" y="560" fill="#3a7bd5" font-family="monospace" font-size="11">Enemy Enc (10→64): 704</text>
 <text x="420" y="560" fill="#f39c12" font-family="monospace" font-size="11">Entity Attn (5→64): 448</text>
-<text x="800" y="560" fill="#888" font-family="monospace" font-size="11">Fusion (291→256→256): 140,800</text>
+<text x="800" y="560" fill="#888" font-family="monospace" font-size="11">Fusion (292→256→256): 140,800</text>
 <text x="40" y="580" fill="#3a7bd5" font-family="monospace" font-size="11">Actor LSTM: 526,336</text>
 <text x="420" y="580" fill="#27ae60" font-family="monospace" font-size="11">Critic LSTM: 526,336</text>
 <text x="800" y="580" fill="#3a7bd5" font-family="monospace" font-size="11">Actor Head: 4,626</text>
@@ -337,20 +337,20 @@ tr:hover {
 <text x="420" y="600" fill="#e67e22" font-family="monospace" font-size="11">Log Std: 4</text>
 <text x="800" y="600" fill="#fff" font-family="monospace" font-size="11">Total: 1,206,775</text>
 <text x="40" y="655" fill="#888" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="bold">Data Flow</text>
-<rect x="40" y="670" width="36" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="58.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">91</text>
-<text x="58.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">obs</text>
+<rect x="40" y="670" width="44" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
+<text x="62.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">113</text>
+<text x="62.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">obs</text>
 <text x="202" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
 <rect x="220" y="670" width="60" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
 <text x="250.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">slice</text>
 <text x="250.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">5 groups</text>
 <text x="382" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
 <rect x="400" y="670" width="124" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="462.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">96+64+64+64+3</text>
+<text x="462.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">96+64+64+64+4</text>
 <text x="462.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">encoded</text>
 <text x="562" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
 <rect x="580" y="670" width="76" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
-<text x="618.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">291→256</text>
+<text x="618.0" y="685" text-anchor="middle" fill="#ddd" font-family="monospace" font-size="11">292→256</text>
 <text x="618.0" y="704" text-anchor="middle" fill="#666" font-family="monospace" font-size="9">fusion</text>
 <text x="742" y="684" fill="#555" font-family="monospace" font-size="14">&rarr;</text>
 <rect x="760" y="670" width="76" height="22" rx="4" fill="#1a1a2a" stroke="#444" stroke-width="1"/>
@@ -629,16 +629,16 @@ tr:hover {
 <tr>
   <td>yaw_delta</td>
   <td class="num">-0.6202</td>
-  <td class="num">-0.6202</td>
-  <td class="num">0.5378</td>
-  <td class="num">1.0541</td>
+  <td class="num">-2.5000</td>
+  <td class="num">0.0821</td>
+  <td class="num">0.1609</td>
 </tr>
 <tr>
   <td>pitch_delta</td>
   <td class="num">-0.6162</td>
-  <td class="num">-0.6162</td>
-  <td class="num">0.5400</td>
-  <td class="num">1.0584</td>
+  <td class="num">-2.5000</td>
+  <td class="num">0.0821</td>
+  <td class="num">0.1609</td>
 </tr>
 <tr>
   <td>forward</td>
@@ -660,7 +660,7 @@ tr:hover {
 <strong>How to read:</strong> The <code>action_log_std</code> parameter controls exploration noise.
 <code>std</code> is the standard deviation of the Gaussian around the mean action.
 Lower values = more deterministic (exploiting). Higher values = more random (exploring).
-Values are clamped to [-2.0, 0.5] before exp().
+Yaw/pitch clamped to [-4.0, -2.5] for precise aim. Movement clamped to [-2.0, 0.5].
 The 95% range shows the typical deviation from the predicted mean.
 </div>
 </div>

@@ -131,7 +131,12 @@ weapon_labels = [f'weapon_{i}' for i in range(11)]
 binary_biases = actor_bias[4:7]
 binary_probs = 1.0 / (1.0 + np.exp(-binary_biases))  # sigmoid
 
-log_std_clamped = np.clip(log_std, -2.0, 0.5)
+# Per-dimension clamping: yaw/pitch tighter for precise aim
+log_std_clamped = log_std.copy()
+log_std_clamped[0] = np.clip(log_std[0], -4.0, -2.5)  # yaw
+log_std_clamped[1] = np.clip(log_std[1], -4.0, -2.5)  # pitch
+log_std_clamped[2] = np.clip(log_std[2], -2.0, 0.5)   # forward
+log_std_clamped[3] = np.clip(log_std[3], -2.0, 0.5)   # side
 std_vals = np.exp(log_std_clamped)
 
 # ---------------------------------------------------------------------------
@@ -226,7 +231,7 @@ for i in range(11):
 """
 
 # ---------------------------------------------------------------------------
-# 5. SVG Architecture Diagram — V2.5 Grouped Encoder
+# 5. SVG Architecture Diagram — V3.0 Grouped Encoder
 # ---------------------------------------------------------------------------
 
 SVG_W = 1200
@@ -279,7 +284,7 @@ def make_svg():
     # Title
     lines.append('<text x="600" y="30" text-anchor="middle" fill="#888" '
                  'font-family="Segoe UI,system-ui,sans-serif" font-size="14">'
-                 'KaaN V2.5 — Grouped Encoder + Entity Attention + Fourier Position</text>')
+                 'KaaN V3.0 — Grouped Encoder + Entity Attention + Aim Supervision</text>')
 
     # Helper: draw a layer node
     def node(x, y, w, h, label, sublabel, grad_id, dim_text=None):
@@ -328,7 +333,7 @@ def make_svg():
     # --- Self State ---
     g0_y = 50
     lines.append(conn(obs_x + 100, obs_y + 20, group_x, g0_y + 20, '#8e44ad'))
-    lines.append(node(group_x, g0_y, 140, nh, 'Self State', 'pos(3)+vel+ang+stats+alive', 'gInput', '14 raw'))
+    lines.append(node(group_x, g0_y, 140, nh, 'Self State', 'pos+vel+ang+stats+alive+walls', 'gInput', '32 raw'))
 
     # Fourier sub-node
     fourier_x = group_x + 10
@@ -339,7 +344,7 @@ def make_svg():
                  f'fill="#fff" font-family="monospace" font-size="9">Fourier pos(3→27)</text>')
 
     lines.append(conn(group_x + 140, g0_y + nh//2, enc_x, g0_y + nh//2, '#8e44ad'))
-    lines.append(node(enc_x, g0_y, nw, nh, 'Self Encoder', 'Linear(38→96)+ReLU', 'gActor', '96 dims'))
+    lines.append(node(enc_x, g0_y, nw, nh, 'Self Encoder', 'Linear(56→96)+ReLU', 'gActor', '96 dims'))
 
     # --- Inventory ---
     g1_y = g0_y + gap + 12
@@ -351,9 +356,9 @@ def make_svg():
     # --- Enemy ---
     g2_y = g1_y + gap
     lines.append(conn(obs_x + 100, obs_y + 20, group_x, g2_y + 20, '#8e44ad'))
-    lines.append(node(group_x, g2_y, 140, nh, 'Enemy', 'vis+rel_xyz+dist+angle', 'gInput', '7 dims'))
+    lines.append(node(group_x, g2_y, 140, nh, 'Enemy', 'vis+xyz+dist+ang+wep+aim', 'gInput', '10 dims'))
     lines.append(conn(group_x + 140, g2_y + nh//2, enc_x, g2_y + nh//2, '#8e44ad'))
-    lines.append(node(enc_x, g2_y, nw, nh, 'Enemy Encoder', 'Linear(7→64)+ReLU', 'gActor', '64 dims'))
+    lines.append(node(enc_x, g2_y, nw, nh, 'Enemy Encoder', 'Linear(10→64)+ReLU', 'gActor', '64 dims'))
 
     # --- Entities (with attention) ---
     g3_y = g2_y + gap
@@ -372,11 +377,11 @@ def make_svg():
     # --- Game State (passthrough) ---
     g4_y = g3_y + gap + 12
     lines.append(conn(obs_x + 100, obs_y + 20, group_x, g4_y + 20, '#8e44ad'))
-    lines.append(node(group_x, g4_y, 140, nh, 'Game State', 'frags+enemy+time', 'gInput', '3 dims'))
+    lines.append(node(group_x, g4_y, 140, nh, 'Game State', 'frags+enemy+time+dmg', 'gInput', '4 dims'))
     # passthrough arrow
     lines.append(conn(group_x + 140, g4_y + nh//2, enc_x + nw, g4_y + nh//2, '#666'))
     lines.append(f'<text x="{enc_x + 60}" y="{g4_y + nh//2 - 6}" text-anchor="middle" '
-                 f'fill="#666" font-family="monospace" font-size="9">passthrough (3)</text>')
+                 f'fill="#666" font-family="monospace" font-size="9">passthrough (4)</text>')
 
     # ============================================================
     # SECTION 3: Fusion (shared)
@@ -388,7 +393,7 @@ def make_svg():
     for gy in [g0_y, g1_y, g2_y, g3_y, g4_y]:
         lines.append(conn(enc_x + nw, gy + nh//2, fusion_x, fusion_y + nh//2, '#555'))
 
-    lines.append(node(fusion_x, fusion_y, 130, nh, 'Fusion Layer 1', 'Linear(291→256)+ReLU', 'gFusion', '291→256'))
+    lines.append(node(fusion_x, fusion_y, 130, nh, 'Fusion Layer 1', 'Linear(292→256)+ReLU', 'gFusion', '292→256'))
     fusion2_y = fusion_y + nh + 12
     lines.append(conn(fusion_x + 65, fusion_y + nh, fusion_x + 65, fusion2_y, '#555'))
     lines.append(node(fusion_x, fusion2_y, 130, nh, 'Fusion Layer 2', 'Linear(256→256)+ReLU', 'gFusion', '256'))
@@ -487,11 +492,11 @@ def make_svg():
 
     param_info = [
         ('Fourier Enc', fourier_params, '#e74c3c'),
-        ('Self Enc (38→96)', self_enc_params, '#3a7bd5'),
+        ('Self Enc (56→96)', self_enc_params, '#3a7bd5'),
         ('Inv Enc (27→64)', inv_enc_params, '#3a7bd5'),
-        ('Enemy Enc (7→64)', enemy_enc_params, '#3a7bd5'),
+        ('Enemy Enc (10→64)', enemy_enc_params, '#3a7bd5'),
         ('Entity Attn (5→64)', entity_attn_params, '#f39c12'),
-        ('Fusion (291→256→256)', fusion_params, '#888'),
+        ('Fusion (292→256→256)', fusion_params, '#888'),
         ('Actor LSTM', actor_lstm_params, '#3a7bd5'),
         ('Critic LSTM', critic_lstm_params, '#27ae60'),
         ('Actor Head', actor_head_params, '#3a7bd5'),
@@ -520,10 +525,10 @@ def make_svg():
                  f'font-size="13" font-weight="bold">Data Flow</text>')
 
     flow_dims = [
-        ('91', 'obs'),
+        ('113', 'obs'),
         ('slice', '5 groups'),
-        ('96+64+64+64+3', 'encoded'),
-        ('291→256', 'fusion'),
+        ('96+64+64+64+4', 'encoded'),
+        ('292→256', 'fusion'),
         ('256→256', 'LSTM'),
         ('4+3+11=18', 'actions'),
     ]
@@ -561,7 +566,7 @@ html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>KaaN V2.5 Neural Network Visualizer</title>
+<title>KaaN V3.0 Neural Network Visualizer</title>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{
@@ -722,7 +727,7 @@ tr:hover {{
 </head>
 <body>
 
-<h1>KaaN V2.5 -- Neural Network Visualizer</h1>
+<h1>KaaN V3.0 -- Neural Network Visualizer</h1>
 <p class="subtitle">Model: {html_mod.escape(ckpt_name)} | Generated: {now} | OBS_DIM: {OBS_DIM} | Grouped Encoder + Entity Attention + Fourier Position</p>
 
 <div class="stat-bar">
@@ -774,7 +779,7 @@ tr:hover {{
 <strong>How to read:</strong> The <code>action_log_std</code> parameter controls exploration noise.
 <code>std</code> is the standard deviation of the Gaussian around the mean action.
 Lower values = more deterministic (exploiting). Higher values = more random (exploring).
-Values are clamped to [-2.0, 0.5] before exp().
+Yaw/pitch clamped to [-4.0, -2.5] for precise aim. Movement clamped to [-2.0, 0.5].
 The 95% range shows the typical deviation from the predicted mean.
 </div>
 </div>

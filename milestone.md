@@ -24,16 +24,18 @@
 
 **Item Respawn:** Items respawn 20-30 seconds after pickup. Controlling when items respawn (timing) is the core strategic skill.
 
-**Training Map: hop** — Small map with frequent encounters. KaaN spawns with all weapons + 100 armor. Scripted bot (skill 1, curriculum learning) also on the map.
+**Training Map: hop** — Tiny box map, guaranteed line of sight, frequent encounters.
 
-**Target Map: q2dm1 "The Edge"** — Classic duel map. Two main levels connected by ramps, lifts, and a teleporter. No red armor on this map. Key positions: RL room, mega health area, yellow armor spots. (Used after KaaN learns combat basics on 2box6.)
+**Current Mode: Instagib** (`g_gamemode 1`) — railgun only, one-shot kill, hitscan, infinite ammo (`dmflags 8192`). Simplifies training to pure aiming.
+
+**Target Map: q2dm1 "The Edge"** — Classic duel map. Two main levels connected by ramps, lifts, and a teleporter. No red armor on this map. Key positions: RL room, mega health area, yellow armor spots. (Used after KaaN learns combat basics.)
 
 **Match Format:**
 - 3-minute timelimit (short rounds for fast iteration)
 - No overtime (g_tie_mode 0)
 - 1-second countdown
 - Auto-ready via bots
-- All weapons given on spawn (2box6 has no pickups)
+- Instagib: railgun only, one-shot kill
 
 **Movement Physics:**
 - Base run speed: 300 units/second
@@ -43,71 +45,83 @@
 
 ---
 
-## Reward Rules V2.0 (what KaaN learns from)
+## Reward Rules V3.0 (what KaaN learns from)
 
-Simplified to core combat + critical anti-suicide signals. Fewer signals = lower value loss = better learning.
+Hit-only RL rewards + auxiliary aim supervision. The NN learns aim direction from a dense MSE supervision loss, not from reward shaping. RL reward only fires for actual combat outcomes.
 
 | Signal | Reward | Purpose |
 |--------|--------|---------|
 | Kill enemy | +1.0 | Primary objective |
 | Die | -1.0 | Primary penalty |
-| Take damage | -damage/100 | Learn to dodge |
-| Deal damage | +damage/100 | Dense combat signal (via STAT_FLASHES, FOV-gated) |
-| Self-splash penalty | -0.15 | Don't shoot rockets into walls at close range |
-| Using blaster with better weapon | -0.02 | Switch to a real weapon! |
-| Get stuck (speed < 20) | -0.01 | Don't stand still |
-| Pick up health/armor | +0.1 | Learn to collect resources |
-| Pick up weapon | +0.15 | Learn to arm yourself |
+| Deal damage | +damage/50 | Dense hit confirmation (via STAT_FLASHES) |
 
-**V2.0 changes:** Stripped from 15 signals to 9. Removed aim tracking, precision bonus, shooting reward, approach reward, item proximity, backward penalty, crouch penalty, circling penalty. Value loss dropped from ~47 to ~0.4 immediately — the critic can now actually learn returns.
+**Auxiliary aim supervision (not reward):**
+- MSE loss between NN yaw/pitch output means and ideal aim deltas from C-side observation
+- Only active when enemy is visible (`aim_mask`)
+- Provides dense per-frame gradient for aim direction (vs sparse frag reward)
+- `aim_loss` dropped from 1.4 → 0.01 within ~20 iterations
 
-**Design philosophy:** Let the core objective (frags, deaths, damage) drive learning. Only add anti-suicide signals for critical bad behaviors (rocket self-splash, blaster hoarding). Aim tracking and movement shaping can be added back once KaaN learns basic combat.
+**V3.0 changes:** Removed ALL continuous facing/aim rewards. Previous versions tried `aim_dot * 0.02`, then `aim_dot² * 0.15` — frags stayed flat at 3-7 (random luck). Auxiliary supervision loss solved it instantly: frags jumped to 280+ within 20 iterations.
+
+**Design philosophy:** Don't try to teach aim through reward shaping — the signal is too weak and sparse for PPO. Instead, use direct supervision (MSE loss) for aim direction, and only reward actual combat outcomes (hits, frags, deaths). The NN learns "where to aim" from supervision and "when to shoot" from RL.
 
 ---
 
 ## Training Infrastructure
 
-- **KaaN V2.7** — 250 parallel instances on 12-core/16GB/RTX 3070
-- **Map:** hop (small map, frequent encounters)
+- **KaaN V3.0** — 250 parallel instances on 12-core/16GB/RTX 3070
+- **Map:** hop (small box map, guaranteed line of sight, frequent encounters)
+- **Game mode:** Instagib (`g_gamemode 1`) — railgun only, one-shot kill, hitscan, infinite ammo (`dmflags 8192`)
 - **Architecture:** V2.6 Grouped Encoder + Entity Attention + Fourier Position + LSTM (1.2M params)
 - **Separate Actor/Critic LSTMs** — no shared trunk (V1.2 fix: value gradients were destroying policy)
 - **Continuous episodes** — no resets on death. Auto-respawn in C, continuous observation stream.
-- **~1,300 steps/sec** throughput, ~50s per iteration (64,000 steps/iter at 250 instances)
+- **~1,300 steps/sec** throughput, ~26s per iteration (64,000 steps/iter at 250 instances)
 - **Behavior cloning warm start** from 53 human demos on q2dm1 (model_bc.pt)
-- **Reward scaling** — 5x multiplier (REWARD_SCALE = 5.0)
+- **Reward scaling** — adaptive via AdaptiveTuner (started 5x, auto-adjusts)
 - **Observation normalization** — running mean/std (Welford's algorithm), clips to [-5, 5]
-- **PPO hyperparameters:** lr=1e-4, epochs=4, value_coef=1.0, target_kl=0.05, entropy_coef=0.005
+- **PPO hyperparameters:** lr=1e-4 (linear decay), epochs=4, value_coef=1.0, target_kl=0.05, entropy_coef=0.005
 - **Rollout:** 256 steps/env, seq_len=32 (LSTM chunks), batch_chunks=16
-- **KL stability:** avg_kl=0.005-0.007, target_kl early stopping per mini-batch
-- **Curriculum learning:** bot skill 1 (graduating to higher skills as K/D improves)
+- **Auxiliary aim supervision:** MSE loss on yaw/pitch means vs ideal aim deltas (aim_coef=1.0)
+- **Per-dimension std clamping:** yaw/pitch [-4.0, -2.5] (max ±0.8°), movement [-2.0, 0.5]
+- **Input smoothing:** EMA low-pass filter (0.6/0.4) on yaw/pitch deltas in C client
+- **Curriculum learning:** bot skill auto-graduates via AdaptiveTuner (K/D thresholds)
 - **Damage dealt tracking** — opentdm exposes per-frame damage via STAT_FLASHES (self-damage filtered)
+- **Dashboard sync:** evolve.html auto-synced to web server every 30 min via scp
 - Batched GPU inference, threaded parallel I/O, semaphore resync between PPO updates
 - Real frag/death tracking from game state (not episode counters)
-- CSV logs: step_reward, frags, deaths per iteration (not just episode-level)
+- CSV logs: step_reward, frags, deaths, aim_loss per iteration
 
 ---
 
-## Stage 1: Newborn (current stage)
+## Stage 1: Aim Training (current stage)
 
-KaaN trains on hop — a small map with frequent encounters. He faces a skill-1 scripted bot (curriculum learning — starting easy). V2.7 uses simplified rewards (9 signals, down from 15) so the value function can actually learn.
+KaaN trains on hop — a tiny box map with guaranteed line of sight. Instagib mode (railgun only, one-shot kill). Bot stands still (`g_bot_nomove 1`, `g_bot_noshoot 1`). KaaN also stationary (`q2ai_nomove 1`) — pure mouse aiming training.
 
-**Current observations (V2.7, hop, 250 instances, bot skill 1):**
-- step_reward: -0.006 to -0.004 (improving with simplified rewards)
-- 120-170 deaths per iteration (250 instances)
-- 9-12 frags per iteration (consistent combat engagement)
-- Value loss: 0.3-0.5 (was 47 with old rewards — massive improvement)
-- KL: 0.006-0.007 (stable)
-- Entropy: 8.3-8.6
-- Deaths trending down: 235 → 126 over 30 iterations
+**V3.0 approach:** Auxiliary aim supervision loss teaches aim direction (MSE between NN output means and ideal aim deltas from C observation). RL reward only for actual hits. Per-dimension std clamping keeps yaw/pitch tight (max ±0.8° scatter). EMA low-pass filter smooths sampling noise.
 
-**Signs of progress:**
-- Gets frags consistently (9-12 per iteration)
-- Deaths decreasing over training
-- Value function actually learning (loss 0.3 vs 47 before)
-- Doesn't self-kill with rockets as often (self-splash penalty working)
-- Switches away from blaster
+**Results (V3.0, hop, 250 instances, 35 iterations):**
+- aim_loss: 1.4 → 0.01 (NN learned aim direction)
+- Frags: 3 (random) → 280-395 per iteration
+- Deaths: 0 (bot can't shoot)
+- step_reward: 0.03-0.05 (consistently positive)
+- Entropy: 3.88-3.94 (stable)
+- Bot skill: auto-graduated 1 → 3 → 4 (meaningless since bot is stationary)
 
-**Metrics:** step_reward > 0.01, frags > 20 per iteration, frag/death ratio > 0.1
+**What worked:**
+- Auxiliary aim supervision (MSE loss) — solved aim in ~20 iterations where reward shaping failed
+- Hit-only rewards — removes noise from continuous facing rewards
+- Per-dimension std clamping — prevents sampling jitter from ruining precise aim
+
+**What didn't work (tried and abandoned):**
+- Facing reward `aim_dot * 0.02` → frags stayed flat at 3-7 (too weak for PPO)
+- Sharper `aim_dot² * 0.15` → still flat (gradient too sparse)
+- Uniform std clamping → movement and aim need different exploration ranges
+
+**Known issues:**
+- EMA low-pass filter causes slow zigzag circling around target (momentum overshoot)
+- Bot skill graduation is meaningless with stationary bots
+
+**Next:** Enable bot shooting (Stage 2) or bot movement (Stage 3) once aim is stable.
 
 **Architecture:** V2.6 Grouped Encoder + Entity Attention + Fourier Position + LSTM (1.2M params). Separate actor/critic LSTMs with truncated BPTT (seq_len=32).
 

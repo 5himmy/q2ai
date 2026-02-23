@@ -27,16 +27,15 @@ BASE_PORT = 27910
 RCON_PASSWORD = "q2ai"
 
 STAGES = [
-    {"name": "Stop blind firing", "check": "blind_fire", "threshold": "blind fire penalty -0.05/frame"},
-    {"name": "Stop crouching", "check": "crouch", "threshold": "crouch penalty -0.10/frame"},
-    {"name": "Stop circling", "check": "circling", "threshold": "circling penalty -0.15/3s"},
-    {"name": "Track enemy with aim", "check": "aim_track", "threshold": "aim within 20deg of enemy"},
-    {"name": "Shoot at enemy", "check": "aimed_fire", "threshold": "aimed fire +0.10/frame"},
-    {"name": "Approach enemy", "check": "approach", "threshold": "approach reward +0.03"},
-    {"name": "Switch weapons", "check": "weapon_switch", "threshold": "blaster penalty -0.02/frame"},
-    {"name": "Get first frag", "check": "frag", "threshold": "frags > 0"},
-    {"name": "Consistent positive reward", "check": "positive", "threshold": "step_reward > 0.01"},
-    {"name": "Frag/death ratio > 0.5", "check": "kd_ratio", "threshold": "frags/deaths > 0.5"},
+    {"name": "Learn aim direction", "check": "aim_loss", "threshold": "aim_loss < 0.05"},
+    {"name": "Hit stationary target", "check": "frag", "threshold": "frags > 50 per iter"},
+    {"name": "Consistent hits", "check": "positive", "threshold": "frags > 200 per iter"},
+    {"name": "Smooth aim (no zigzag)", "check": "smooth_aim", "threshold": "visual inspection"},
+    {"name": "Hit moving target", "check": "moving_target", "threshold": "frags > 50 with bot moving"},
+    {"name": "Survive under fire", "check": "survive", "threshold": "deaths < frags with bot shooting"},
+    {"name": "Track + shoot moving bot", "check": "full_combat", "threshold": "K/D > 1.0 full bot"},
+    {"name": "Learn movement", "check": "movement", "threshold": "speed > 200 avg"},
+    {"name": "Frag/death ratio > 1.0", "check": "kd_ratio", "threshold": "frags/deaths > 1.0"},
     {"name": "Win a match", "check": "win", "threshold": "frags > bot frags"},
 ]
 
@@ -45,7 +44,8 @@ ARCH_MILESTONES = [
     {"name": "V1.0 MLP Baseline", "status": "done", "threshold": "91\u2192256\u2192256\u2192128\u219218 separate A/C"},
     {"name": "V2.0 LSTM Memory", "status": "done", "threshold": "encoder(91\u2192256) + LSTM(256\u2192256)"},
     {"name": "V2.5 Grouped Encoder", "status": "done", "threshold": "Fourier pos + entity attention + 2-layer fusion"},
-    {"name": "V3.0 Self-Play", "status": "pending", "threshold": "train against copies of itself"},
+    {"name": "V3.0 Aim Supervision", "status": "done", "threshold": "MSE aim loss + hit-only rewards + per-dim std clamp"},
+    {"name": "V4.0 Self-Play", "status": "pending", "threshold": "train against copies of itself"},
 ]
 
 
