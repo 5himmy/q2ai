@@ -55,6 +55,8 @@ Server:27913 + KaaN[instance=3]  ─┘
 - Entity state: visible entities with positions, angles, modelindex, effects, entity type classification
 - Entity types: `ENT_TYPE_PLAYER`, `ENT_TYPE_ITEM`, `ENT_TYPE_PROJECTILE`
 - Enemy tracking: nearest enemy player position, angles, visibility flag
+- Enemy weapon from skinnum encoding (WEAP_* 1-11)
+- Ideal aim deltas: exact yaw/pitch to face enemy (computed in C, fed as observation)
 - Game state: map name, server frame/time
 
 ### Phase 3 — AI Input Replacement: COMPLETE
@@ -103,11 +105,13 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Semaphore drain + no-op resync between rollout iterations
   - Batched GPU inference via `act_batch()` (1 forward pass per step, not N)
   - Pipelined env I/O: send all actions (non-blocking) → recv all obs (parallel)
-- [x] `python/q2ai_env.py` — Gymnasium environment (110-dim observation vector)
+- [x] `python/q2ai_env.py` — Gymnasium environment (113-dim observation vector)
   - Normalized observations: position/4096, velocity/400, sin/cos angles, etc.
   - 8 nearest entities with relative position and type
   - 18 wall raycasts for spatial awareness (eye + knee height + floor/ceiling)
   - Inventory: 10 weapon ownership flags + 6 normalized ammo counts
+  - Enemy weapon tracking (WEAP_* index from skinnum encoding)
+  - Ideal aim deltas: exact yaw/pitch to face enemy (NN can learn "copy these to aim")
   - Split step() into send_action() (non-blocking) + recv_obs() (blocking wait)
 - [x] `python/q2ai_structs.py` — ctypes mirrors of C structs
 - [x] Behavior cloning from demo playback (`ai_demo.c` + `python/imitate.py`)
@@ -187,6 +191,9 @@ Server:27913 + KaaN[instance=3]  ─┘
 
 #### In Progress:
 - [ ] V3.0 Training Curriculum — teach AI to shoot first
+  - Observation upgrades: enemy weapon (skinnum), ideal aim deltas (yaw/pitch to face enemy)
+    - NN just needs to learn "copy obs[49] → yaw output, obs[50] → pitch output" to aim perfectly
+    - Enemy encoder: 10 inputs (visible, rel_xyz, dist, angle_sin/cos, weapon, aim_yaw, aim_pitch)
   - Stage 1: `g_bot_nomove 1` + `g_bot_noshoot 1` + `q2ai_nomove 1` — stationary dummy, KaaN learns mouse aiming only
     - Instagib mode (`g_gamemode 1`): railgun only, one-shot kill, hitscan
     - Infinite ammo (`dmflags 8192`)
@@ -257,7 +264,7 @@ AI generates per-frame actions converted to real player inputs (`usercmd_t`):
 
 | File | Purpose |
 |------|---------|
-| `q2ai_env.py` | Gymnasium environment (89-dim obs, hybrid actions) |
+| `q2ai_env.py` | Gymnasium environment (113-dim obs, hybrid actions) |
 | `q2ai_structs.py` | ctypes mirrors of `ai_bridge.h` |
 | `model.py` | ActorCritic network (PPO + behavior cloning, LSTM planned) |
 | `train.py` | PPO training loop (multi-instance, GPU, adaptive tuning) |

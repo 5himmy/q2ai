@@ -149,6 +149,40 @@ void AI_Observe_Update(ai_observation_t *obs)
         obs->enemy_last_seen_age = (float)(cl.servertime - s_last_enemy_servertime);
     }
 
+    // Ideal aim deltas: exact yaw/pitch to face enemy (hint for NN)
+    obs->enemy_aim_yaw = 0.0f;
+    obs->enemy_aim_pitch = 0.0f;
+    {
+        // Use enemy_origin (either visible now or last-known)
+        float ex = obs->enemy_origin[0];
+        float ey = obs->enemy_origin[1];
+        float ez = obs->enemy_origin[2];
+        bool has_pos = (ex != 0.0f || ey != 0.0f || ez != 0.0f);
+
+        if (has_pos && obs->pm_type == PM_NORMAL && obs->health > 0) {
+            float dx = ex - cl.predicted_origin[0];
+            float dy = ey - cl.predicted_origin[1];
+            float dz = ez - cl.predicted_origin[2];
+
+            // Desired angles to face enemy
+            float desired_yaw = atan2f(dy, dx) * (180.0f / M_PI);
+            float dist_horiz = sqrtf(dx * dx + dy * dy);
+            float desired_pitch = -atan2f(dz, dist_horiz) * (180.0f / M_PI);
+
+            // Current angles
+            float cur_yaw = cl.predicted_angles[YAW];
+            float cur_pitch = cl.predicted_angles[PITCH];
+
+            // Yaw delta (handle wraparound)
+            float yaw_diff = desired_yaw - cur_yaw;
+            while (yaw_diff > 180.0f)  yaw_diff -= 360.0f;
+            while (yaw_diff < -180.0f) yaw_diff += 360.0f;
+
+            obs->enemy_aim_yaw = yaw_diff;
+            obs->enemy_aim_pitch = desired_pitch - cur_pitch;
+        }
+    }
+
     // Combat feedback: damage dealt this frame (from STAT_FLASHES)
     obs->damage_dealt = ps->stats[STAT_FLASHES];
 

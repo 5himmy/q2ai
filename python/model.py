@@ -2,12 +2,12 @@
 model.py -- Actor-Critic with grouped encoder + entity attention + LSTM memory.
 
 V2.6 Architecture:
-  obs (111) → slice into groups → group encoders → concat → fusion → LSTM → head
+  obs (113) → slice into groups → group encoders → concat → fusion → LSTM → head
 
 Group encoders:
   - Self: Fourier(pos) + vel + angles + stats + alive + walls(18) → Linear(56→96)
   - Inventory: weapon_1hot + owned + ammo → Linear(27→64)
-  - Enemy: visible + rel_xyz + dist + angle + weapon → Linear(8→64)
+  - Enemy: visible + rel_xyz + dist + angle + weapon + aim_yaw + aim_pitch → Linear(10→64)
   - Entities: 8×[xyz+active+type] → shared Linear(5→64) + attention pool → 64
   - Game: frags + enemy_frags + match_time + damage_dealt → 4 (passthrough)
 
@@ -159,9 +159,9 @@ class ActorCritic(nn.Module):
             nn.ReLU(),
         )
 
-        # Enemy: visible(1) + rel_xyz(3) + dist(1) + angle(2) + weapon(1) = 8
+        # Enemy: visible(1) + rel_xyz(3) + dist(1) + angle(2) + weapon(1) + aim_yaw(1) + aim_pitch(1) = 10
         self.enemy_encoder = nn.Sequential(
-            layer_init(nn.Linear(8, 64)),
+            layer_init(nn.Linear(10, 64)),
             nn.ReLU(),
         )
 
@@ -223,10 +223,10 @@ class ActorCritic(nn.Module):
         alive = obs[..., 24:25]     # 1
         weapons_owned = obs[..., 25:35]  # 10
         ammo = obs[..., 35:41]      # 6
-        enemy = obs[..., 41:49]     # 8  visible + rel_xyz + dist + angle + weapon
-        ent_flat = obs[..., 49:89]  # 40 → reshape to (..., 8, 5)
-        game = obs[..., 89:93]      # 4  frags, enemy_frags, match_time, damage_dealt
-        walls = obs[..., 93:111]    # 18 wall raycast distances (8 eye + floor + ceil + 8 knee)
+        enemy = obs[..., 41:51]     # 10 visible + rel_xyz + dist + angle + weapon + aim_yaw + aim_pitch
+        ent_flat = obs[..., 51:91]  # 40 → reshape to (..., 8, 5)
+        game = obs[..., 91:95]      # 4  frags, enemy_frags, match_time, damage_dealt
+        walls = obs[..., 95:113]    # 18 wall raycast distances (8 eye + floor + ceil + 8 knee)
 
         # --- Self state group ---
         pos_fourier = self.fourier(pos)  # (..., 27)
