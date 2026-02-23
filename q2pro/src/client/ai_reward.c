@@ -4,8 +4,9 @@
  * V3.0 Stage 1: Aim-only training against stationary dummy.
  * Smooth gradient rewards — the closer the crosshair, the better.
  *
- *   +aim_dot * 0.02   facing reward (continuous, any facing toward enemy)
- *   +aim_dot * 0.05   shooting reward (continuous, better aim = more reward)
+ *   +aim_dot * 0.05   facing reward (gentle nudge toward enemy)
+ *   +aim_dot² * 0.15  precision reward (sharp bonus for dead-on aim)
+ *   +aim_dot² * 0.25  shooting reward (only worth it when aim is precise)
  *   +damage/50        damage dealt
  *   +1.0              per frag
  *   -1.0              per death
@@ -89,13 +90,17 @@ float AI_Reward_Compute(void)
 
     if (enemy_visible && cur_pm_type == PM_NORMAL && cur_health > 0) {
         float facing = aim_dot > 0.0f ? aim_dot : 0.0f;  // 0 to 1
+        float precise = facing * facing;  // squared: near-miss ≈ 0, dead-on ≈ 1
 
-        // Facing reward: any turn toward enemy is good, closer = better
-        reward += facing * 0.02f;
+        // Facing reward: gentle nudge toward enemy
+        reward += facing * 0.05f;
 
-        // Shooting reward: shooting while facing enemy, scaled by aim quality
+        // Precision reward: sharp bonus for actually aiming AT enemy
+        reward += precise * 0.15f;
+
+        // Shooting reward: only worth it when aim is precise
         if (q2ai_shared_action.attack) {
-            reward += facing * 0.05f;
+            reward += precise * 0.25f;
         }
     }
 

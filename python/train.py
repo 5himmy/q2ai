@@ -203,6 +203,10 @@ class RolloutBuffer:
         self.returns = np.zeros((num_envs, steps_per_env), dtype=np.float32)
         self.advantages = np.zeros((num_envs, steps_per_env), dtype=np.float32)
 
+        # Aim supervision targets: [yaw_target, pitch_target] + mask
+        self.aim_targets = np.zeros((num_envs, steps_per_env, 2), dtype=np.float32)
+        self.aim_masks = np.zeros((num_envs, steps_per_env), dtype=np.float32)
+
         # Hidden states at chunk boundaries (for LSTM replay during PPO)
         # Shape: (num_envs, num_chunks, 1, 1, hidden_size) for each of h_a, c_a, h_c, c_c
         nc = self.num_chunks_per_env
@@ -213,7 +217,8 @@ class RolloutBuffer:
 
         self.ptrs = np.zeros(num_envs, dtype=np.int64)  # per-env step pointer
 
-    def add(self, env_id, obs, action_dict, log_prob, reward, value, done):
+    def add(self, env_id, obs, action_dict, log_prob, reward, value, done,
+            aim_target=None, aim_mask=0.0):
         """Store one transition for a specific env."""
         t = self.ptrs[env_id]
         self.obs[env_id, t] = obs
@@ -226,6 +231,9 @@ class RolloutBuffer:
         self.rewards[env_id, t] = reward
         self.values[env_id, t] = value
         self.dones[env_id, t] = float(done)
+        if aim_target is not None:
+            self.aim_targets[env_id, t] = aim_target
+        self.aim_masks[env_id, t] = aim_mask
         self.ptrs[env_id] = t + 1
 
     def save_hidden(self, env_id, chunk_idx, hidden_state):
@@ -298,6 +306,8 @@ class RolloutBuffer:
             logp_batch = np.zeros((B, S), dtype=np.float32)
             ret_batch = np.zeros((B, S), dtype=np.float32)
             adv_batch = np.zeros((B, S), dtype=np.float32)
+            aim_t_batch = np.zeros((B, S, 2), dtype=np.float32)
+            aim_m_batch = np.zeros((B, S), dtype=np.float32)
             h_a_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
             c_a_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
             h_c_batch = np.zeros((B, self.hidden_size), dtype=np.float32)
@@ -316,6 +326,8 @@ class RolloutBuffer:
                 logp_batch[i] = self.log_probs[e, t0:t1]
                 ret_batch[i] = self.returns[e, t0:t1]
                 adv_batch[i] = self.advantages[e, t0:t1]
+                aim_t_batch[i] = self.aim_targets[e, t0:t1]
+                aim_m_batch[i] = self.aim_masks[e, t0:t1]
                 h_a_batch[i] = self.chunk_h_actor[e, c]
                 c_a_batch[i] = self.chunk_c_actor[e, c]
                 h_c_batch[i] = self.chunk_h_critic[e, c]
@@ -331,6 +343,8 @@ class RolloutBuffer:
                 "log_probs": torch.FloatTensor(logp_batch).to(device),
                 "returns": torch.FloatTensor(ret_batch).to(device),
                 "advantages": torch.FloatTensor(adv_batch).to(device),
+                "aim_targets": torch.FloatTensor(aim_t_batch).to(device),
+                "aim_masks": torch.FloatTensor(aim_m_batch).to(device),
                 # Hidden states: (1, B, hidden) for LSTM
                 "h_actor": torch.FloatTensor(h_a_batch).unsqueeze(0).to(device),
                 "c_actor": torch.FloatTensor(c_a_batch).unsqueeze(0).to(device),
@@ -343,10 +357,10 @@ class RolloutBuffer:
 
 
 def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
-               entropy_coef, value_coef, max_grad_norm, target_kl, device="cpu"):
+               entropy_coef, value_coef, max_grad_norm, target_kl, aim_coef=1.0, device="cpu"):
     """Run PPO updates on sequence chunks with LSTM unrolling."""
     metrics = {"policy_loss": 0, "value_loss": 0, "entropy": 0,
-               "clip_fraction": 0, "approx_kl": 0, "n_updates": 0}
+               "clip_fraction": 0, "approx_kl": 0, "aim_loss": 0, "n_updates": 0}
 
     early_stop = False
     for epoch in range(epochs):
@@ -398,7 +412,19 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
 
             value_loss = 0.5 * (new_value - returns).pow(2).mean()
             entropy_loss = entropy.mean()
-            loss = policy_loss + value_coef * value_loss - entropy_coef * entropy_loss
+
+            # Auxiliary aim supervision: teach yaw/pitch to match ideal aim deltas
+            aim_loss = torch.tensor(0.0, device=device)
+            if aim_coef > 0:
+                cont_means = result["cont_means"].reshape(-1, 4)  # (B*S, 4)
+                aim_targets = batch["aim_targets"].reshape(-1, 2)  # (B*S, 2)
+                aim_masks = batch["aim_masks"].reshape(-1)          # (B*S,)
+                # MSE on yaw and pitch means, masked to frames with visible enemy
+                aim_err = (cont_means[..., :2] - aim_targets).pow(2).sum(dim=-1)  # (B*S,)
+                mask_sum = aim_masks.sum().clamp(min=1.0)
+                aim_loss = (aim_err * aim_masks).sum() / mask_sum
+
+            loss = policy_loss + value_coef * value_loss - entropy_coef * entropy_loss + aim_coef * aim_loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -410,6 +436,7 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
             metrics["policy_loss"] += policy_loss.item()
             metrics["value_loss"] += value_loss.item()
             metrics["entropy"] += entropy_loss.item()
+            metrics["aim_loss"] += aim_loss.item()
             metrics["clip_fraction"] += clip_frac
             metrics["approx_kl"] += approx_kl
             metrics["n_updates"] += 1
@@ -418,7 +445,8 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
     for k in metrics:
         if k != "n_updates":
             metrics[k] /= n
-    print(f"  [PPO] n_updates={metrics['n_updates']:.0f}, avg_kl={metrics['approx_kl']:.4f}, pi={metrics['policy_loss']:.4f}")
+    print(f"  [PPO] n_updates={metrics['n_updates']:.0f}, avg_kl={metrics['approx_kl']:.4f}, "
+          f"pi={metrics['policy_loss']:.4f}, aim={metrics['aim_loss']:.4f}")
 
     return metrics
 
@@ -594,6 +622,7 @@ def train(args):
     raw_obs_list = list(executor.map(lambda env: env.reset()[0], envs))
     obs_normalizer.update(raw_obs_list)
     obs_list = [obs_normalizer.normalize(o) for o in raw_obs_list]
+    raw_obs_list = [o.copy() for o in raw_obs_list]  # keep raw copy for aim targets
     print(f"Ready! Starting training loop ({num_envs}x parallel, LSTM seq={seq_len}).\n")
 
     for iteration in range(1, args.num_rollouts + 1):
@@ -615,6 +644,7 @@ def train(args):
         raw_obs_batch = [fresh[e][0] for e in range(num_envs)]
         obs_normalizer.update(raw_obs_batch)
         for e in range(num_envs):
+            raw_obs_list[e] = raw_obs_batch[e].copy()
             obs_list[e] = obs_normalizer.normalize(raw_obs_batch[e])
 
         # Collect rollout
@@ -624,6 +654,20 @@ def train(args):
                 chunk_idx = t // seq_len
                 for e in range(num_envs):
                     buffer.save_hidden(e, chunk_idx, hidden_states[e])
+
+            # Compute aim targets from raw obs (before normalization)
+            # Target: clamp(aim_delta_degrees / max_delta_per_frame, -1, 1)
+            # yaw: raw[49] = aim_yaw_deg/180, NN output*10=degrees → target = raw*18
+            # pitch: raw[50] = aim_pitch_deg/90, NN output*5=degrees → target = raw*18
+            aim_targets_t = []
+            aim_masks_t = []
+            for e in range(num_envs):
+                raw = raw_obs_list[e]
+                aim_targets_t.append([
+                    np.clip(raw[49] * 18.0, -1.0, 1.0),
+                    np.clip(raw[50] * 18.0, -1.0, 1.0),
+                ])
+                aim_masks_t.append(1.0 if raw[41] > 0.5 else 0.0)
 
             # Batch inference with LSTM hidden states
             actions, log_probs, values, new_hidden_states = model.act_batch(obs_list, hidden_states)
@@ -645,7 +689,8 @@ def train(args):
                 rollout_rewards.append(reward)
                 scaled_reward = reward * tuner.reward_scale
 
-                buffer.add(e, obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated)
+                buffer.add(e, obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated,
+                           aim_target=aim_targets_t[e], aim_mask=aim_masks_t[e])
                 total_timesteps += 1
                 ep_reward[e] += reward
                 ep_length[e] += 1
@@ -660,6 +705,7 @@ def train(args):
                 prev_frags[e] = cur_frags
                 prev_health[e] = cur_health
 
+                raw_obs_list[e] = next_obs_raw.copy()
                 obs_list[e] = obs_normalizer.normalize(next_obs_raw)
 
                 if terminated:
@@ -679,6 +725,7 @@ def train(args):
             if reset_envs:
                 reset_results = list(executor.map(lambda e: (e, envs[e].reset()), reset_envs))
                 for e, (obs_raw, _info) in reset_results:
+                    raw_obs_list[e] = obs_raw.copy()
                     obs_list[e] = obs_normalizer.normalize(obs_raw)
 
         # Bootstrap ALL envs (fix: old code only bootstrapped env 0)
@@ -706,6 +753,7 @@ def train(args):
             value_coef=args.value_coef,
             max_grad_norm=args.max_grad_norm,
             target_kl=args.target_kl,
+            aim_coef=args.aim_coef,
             device=device,
         )
 
@@ -727,7 +775,7 @@ def train(args):
             print(f"[{iteration:>6}] steps={total_timesteps:>8} | "
                   f"step_r={step_r:>7.4f} frags={rollout_frags:>3} deaths={rollout_deaths:>3} | "
                   f"pi={metrics['policy_loss']:>7.4f} v={metrics['value_loss']:>7.4f} "
-                  f"ent={metrics['entropy']:>6.3f} kl={metrics['approx_kl']:>7.4f} | "
+                  f"aim={metrics['aim_loss']:>6.4f} ent={metrics['entropy']:>6.3f} kl={metrics['approx_kl']:>7.4f} | "
                   f"{elapsed:>6.0f}s")
             print(f"  [TUNER] ent_c={tuner_state['entropy_coef']:.4f} "
                   f"lr={tuner_state['lr']:.2e} "
@@ -797,4 +845,5 @@ if __name__ == "__main__":
     parser.add_argument("--timeout", type=float, default=5.0, help="Observation timeout (seconds)")
     parser.add_argument("--resume", type=str, default=None, help="Resume from checkpoint")
     parser.add_argument("--bot-skill", type=int, default=1, help="Initial bot skill level (0-10)")
+    parser.add_argument("--aim-coef", type=float, default=1.0, help="Auxiliary aim supervision coefficient")
     train(parser.parse_args())

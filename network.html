@@ -164,7 +164,7 @@ tr:hover {
 <body>
 
 <h1>KaaN V2.5 -- Neural Network Visualizer</h1>
-<p class="subtitle">Model: model_bc.pt | Generated: 2026-02-23 06:15:09 | OBS_DIM: 113 | Grouped Encoder + Entity Attention + Fourier Position</p>
+<p class="subtitle">Model: model_bc.pt | Generated: 2026-02-23 06:58:07 | OBS_DIM: 113 | Grouped Encoder + Entity Attention + Fourier Position</p>
 
 <div class="stat-bar">
   <div class="stat-item"><div class="val">1,206,775</div><div class="lbl">Total Parameters</div></div>
@@ -391,10 +391,10 @@ tr:hover {
   <td>self_encoder.0.weight</td>
   <td>[96, 56]</td>
   <td class="num">5,376</td>
-  <td class="num ">0.0040</td>
+  <td class="num ">0.0015</td>
   <td class="num">0.1443</td>
-  <td class="num negative">-0.4735</td>
-  <td class="num positive">0.4906</td>
+  <td class="num negative">-0.5812</td>
+  <td class="num positive">0.5078</td>
 </tr>
 <tr>
   <td>self_encoder.0.bias</td>
@@ -409,10 +409,10 @@ tr:hover {
   <td>inv_encoder.0.weight</td>
   <td>[64, 27]</td>
   <td class="num">1,728</td>
-  <td class="num ">-0.0008</td>
-  <td class="num">0.1768</td>
-  <td class="num negative">-0.5656</td>
-  <td class="num positive">0.5137</td>
+  <td class="num ">0.0076</td>
+  <td class="num">0.1766</td>
+  <td class="num negative">-0.4983</td>
+  <td class="num positive">0.5420</td>
 </tr>
 <tr>
   <td>inv_encoder.0.bias</td>
@@ -427,10 +427,10 @@ tr:hover {
   <td>enemy_encoder.0.weight</td>
   <td>[64, 10]</td>
   <td class="num">640</td>
-  <td class="num ">-0.0022</td>
-  <td class="num">0.1768</td>
-  <td class="num negative">-0.5794</td>
-  <td class="num positive">0.5387</td>
+  <td class="num ">-0.0077</td>
+  <td class="num">0.1766</td>
+  <td class="num negative">-0.5425</td>
+  <td class="num positive">0.5353</td>
 </tr>
 <tr>
   <td>enemy_encoder.0.bias</td>
@@ -445,19 +445,19 @@ tr:hover {
   <td>entity_attn.query</td>
   <td>[64]</td>
   <td class="num">64</td>
-  <td class="num ">0.0055</td>
-  <td class="num">0.0951</td>
-  <td class="num negative">-0.2086</td>
-  <td class="num positive">0.1765</td>
+  <td class="num ">0.0054</td>
+  <td class="num">0.0886</td>
+  <td class="num negative">-0.1904</td>
+  <td class="num positive">0.2595</td>
 </tr>
 <tr>
   <td>entity_attn.entity_encoder.0.weight</td>
   <td>[64, 5]</td>
   <td class="num">320</td>
-  <td class="num positive">0.0131</td>
-  <td class="num">0.1763</td>
-  <td class="num negative">-0.4429</td>
-  <td class="num positive">0.5721</td>
+  <td class="num ">-0.0025</td>
+  <td class="num">0.1768</td>
+  <td class="num negative">-0.5492</td>
+  <td class="num positive">0.4640</td>
 </tr>
 <tr>
   <td>entity_attn.entity_encoder.0.bias</td>
@@ -472,10 +472,10 @@ tr:hover {
   <td>fusion.0.weight</td>
   <td>[256, 292]</td>
   <td class="num">74,752</td>
-  <td class="num ">0.0001</td>
+  <td class="num ">0.0003</td>
   <td class="num">0.0828</td>
-  <td class="num negative">-0.3379</td>
-  <td class="num positive">0.3496</td>
+  <td class="num negative">-0.3708</td>
+  <td class="num positive">0.3438</td>
 </tr>
 <tr>
   <td>fusion.0.bias</td>
@@ -490,10 +490,10 @@ tr:hover {
   <td>fusion.2.weight</td>
   <td>[256, 256]</td>
   <td class="num">65,536</td>
-  <td class="num ">-0.0005</td>
+  <td class="num ">0.0005</td>
   <td class="num">0.0884</td>
-  <td class="num negative">-0.4353</td>
-  <td class="num positive">0.3744</td>
+  <td class="num negative">-0.3634</td>
+  <td class="num positive">0.4099</td>
 </tr>
 <tr>
   <td>fusion.2.bias</td>
@@ -508,26 +508,26 @@ tr:hover {
   <td>actor_lstm.weight_ih_l0</td>
   <td>[1024, 256]</td>
   <td class="num">262,144</td>
-  <td class="num ">0.0000</td>
+  <td class="num ">-0.0000</td>
   <td class="num">0.0312</td>
-  <td class="num negative">-0.1475</td>
-  <td class="num positive">0.1677</td>
+  <td class="num negative">-0.1386</td>
+  <td class="num positive">0.1263</td>
 </tr>
 <tr>
   <td>actor_lstm.weight_hh_l0</td>
   <td>[1024, 256]</td>
   <td class="num">262,144</td>
-  <td class="num ">0.0000</td>
+  <td class="num ">-0.0000</td>
   <td class="num">0.0312</td>
-  <td class="num negative">-0.1457</td>
-  <td class="num positive">0.1537</td>
+  <td class="num negative">-0.1401</td>
+  <td class="num positive">0.1459</td>
 </tr>
 <tr>
   <td>actor_lstm.bias_ih_l0</td>
   <td>[1024]</td>
   <td class="num">1,024</td>
-  <td class="num positive">0.2506</td>
-  <td class="num">0.4338</td>
+  <td class="num positive">0.2499</td>
+  <td class="num">0.4342</td>
   <td class="num negative">-0.0622</td>
   <td class="num positive">1.0000</td>
 </tr>
@@ -535,9 +535,9 @@ tr:hover {
   <td>actor_lstm.bias_hh_l0</td>
   <td>[1024]</td>
   <td class="num">1,024</td>
-  <td class="num positive">0.2507</td>
-  <td class="num">0.4337</td>
-  <td class="num negative">-0.0622</td>
+  <td class="num positive">0.2491</td>
+  <td class="num">0.4347</td>
+  <td class="num negative">-0.0624</td>
   <td class="num positive">1.0000</td>
 </tr>
 <tr>
@@ -546,8 +546,8 @@ tr:hover {
   <td class="num">4,608</td>
   <td class="num ">-0.0000</td>
   <td class="num">0.0006</td>
-  <td class="num ">-0.0021</td>
-  <td class="num ">0.0022</td>
+  <td class="num ">-0.0023</td>
+  <td class="num ">0.0020</td>
 </tr>
 <tr>
   <td>actor.bias</td>
@@ -562,46 +562,46 @@ tr:hover {
   <td>critic_lstm.weight_ih_l0</td>
   <td>[1024, 256]</td>
   <td class="num">262,144</td>
-  <td class="num ">0.0001</td>
+  <td class="num ">0.0000</td>
   <td class="num">0.0312</td>
-  <td class="num negative">-0.1383</td>
-  <td class="num positive">0.1436</td>
+  <td class="num negative">-0.1386</td>
+  <td class="num positive">0.1468</td>
 </tr>
 <tr>
   <td>critic_lstm.weight_hh_l0</td>
   <td>[1024, 256]</td>
   <td class="num">262,144</td>
-  <td class="num ">0.0000</td>
+  <td class="num ">-0.0000</td>
   <td class="num">0.0312</td>
-  <td class="num negative">-0.1457</td>
-  <td class="num positive">0.1396</td>
+  <td class="num negative">-0.1450</td>
+  <td class="num positive">0.1490</td>
 </tr>
 <tr>
   <td>critic_lstm.bias_ih_l0</td>
   <td>[1024]</td>
   <td class="num">1,024</td>
-  <td class="num positive">0.2497</td>
-  <td class="num">0.4343</td>
-  <td class="num negative">-0.0624</td>
+  <td class="num positive">0.2511</td>
+  <td class="num">0.4335</td>
+  <td class="num negative">-0.0623</td>
   <td class="num positive">1.0000</td>
 </tr>
 <tr>
   <td>critic_lstm.bias_hh_l0</td>
   <td>[1024]</td>
   <td class="num">1,024</td>
-  <td class="num positive">0.2513</td>
-  <td class="num">0.4333</td>
-  <td class="num negative">-0.0619</td>
+  <td class="num positive">0.2497</td>
+  <td class="num">0.4343</td>
+  <td class="num negative">-0.0623</td>
   <td class="num positive">1.0000</td>
 </tr>
 <tr>
   <td>critic.weight</td>
   <td>[1, 256]</td>
   <td class="num">256</td>
-  <td class="num ">0.0032</td>
-  <td class="num">0.0624</td>
-  <td class="num negative">-0.1554</td>
-  <td class="num positive">0.1782</td>
+  <td class="num ">-0.0022</td>
+  <td class="num">0.0625</td>
+  <td class="num negative">-0.1593</td>
+  <td class="num positive">0.1459</td>
 </tr>
 <tr>
   <td>critic.bias</td>

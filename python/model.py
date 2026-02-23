@@ -374,6 +374,7 @@ class ActorCritic(nn.Module):
             "log_prob": log_prob,
             "entropy": entropy,
             "value": value,
+            "cont_means": cont_means,
             "hidden_actor": new_hidden_actor,
             "hidden_critic": new_hidden_critic,
         }
