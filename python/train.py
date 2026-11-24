@@ -58,7 +58,8 @@ class AdaptiveTuner:
     """Adjusts entropy_coef, LR, reward_scale, and bot skill during training."""
 
     def __init__(self, initial_entropy_coef, initial_lr, initial_reward_scale,
-                 num_rollouts, num_envs, target_entropy=5.0, initial_bot_skill=0):
+                 num_rollouts, num_envs, target_entropy=5.0, initial_bot_skill=0,
+                 aim_assist=True, initial_assist_weight=1.0):
         self.entropy_coef = initial_entropy_coef
         self.initial_lr = initial_lr
         self.lr = initial_lr
@@ -67,6 +68,10 @@ class AdaptiveTuner:
         self.num_envs = num_envs
         self.target_entropy = target_entropy
         self.bot_skill = initial_bot_skill
+
+        # Aim assist curriculum
+        self.aim_assist = aim_assist
+        self.assist_weight = initial_assist_weight if aim_assist else 0.0
 
         # Rolling K/D tracking (last 10 logged iterations)
         self.kd_history = deque(maxlen=10)
@@ -112,11 +117,24 @@ class AdaptiveTuner:
                     rcon_query(port, f"g_bot_skill {self.bot_skill}")
                 self.kd_history.clear()
 
+        # 5. Aim assist decay — one-way curriculum (never re-enables once reduced)
+        if self.aim_assist and self.assist_weight > 0 and len(self.kd_history) >= 5:
+            recent_kd = sum(list(self.kd_history)[-5:]) / 5
+            if recent_kd > 0.5:
+                self.assist_weight = 0.0
+                print(f"  [TUNER] Aim assist disabled (recent K/D={recent_kd:.2f} > 0.5)")
+            elif recent_kd > 0.3:
+                old_w = self.assist_weight
+                self.assist_weight = max(0.0, self.assist_weight * 0.95)
+                if abs(old_w - self.assist_weight) > 0.01:
+                    print(f"  [TUNER] Aim assist decayed {old_w:.3f} → {self.assist_weight:.3f} (recent K/D={recent_kd:.2f})")
+
         return {
             "entropy_coef": self.entropy_coef,
             "lr": self.lr,
             "reward_scale": self.reward_scale,
             "bot_skill": self.bot_skill,
+            "assist_weight": self.assist_weight,
         }
 
 
@@ -478,6 +496,8 @@ def train(args):
         num_rollouts=args.num_rollouts,
         num_envs=num_envs,
         initial_bot_skill=args.bot_skill,
+        aim_assist=args.aim_assist,
+        initial_assist_weight=args.aim_assist_weight,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -589,8 +609,8 @@ def train(args):
     log_writer.writerow([
         "iteration", "timesteps", "episodes", "mean_reward", "step_reward",
         "frags", "deaths", "mean_length", "policy_loss", "value_loss",
-        "entropy", "clip_fraction", "approx_kl", "elapsed_s",
-        "entropy_coef", "lr", "reward_scale", "bot_skill",
+        "entropy", "clip_fraction", "approx_kl", "aim_loss", "elapsed_s",
+        "entropy_coef", "lr", "reward_scale", "bot_skill", "assist_weight",
     ])
 
     # Per-env episode tracking
@@ -673,9 +693,26 @@ def train(args):
             actions, log_probs, values, new_hidden_states = model.act_batch(obs_list, hidden_states)
             hidden_states = new_hidden_states
 
+            # Aim assist: blend model yaw/pitch with ideal script aim (enemy visible only).
+            # sent_actions has blended yaw/pitch; buffer.add() uses original actions
+            # so policy gradient is computed on unmodified model output.
+            if args.aim_assist and tuner.assist_weight > 0:
+                sent_actions = []
+                for e in range(num_envs):
+                    if raw_obs_list[e][41] > 0.5:  # enemy visible
+                        w = tuner.assist_weight
+                        sa = dict(actions[e])
+                        sa["yaw_delta"] = w * raw_obs_list[e][49] * 180.0 + (1.0 - w) * actions[e]["yaw_delta"]
+                        sa["pitch_delta"] = w * raw_obs_list[e][50] * 90.0 + (1.0 - w) * actions[e]["pitch_delta"]
+                        sent_actions.append(sa)
+                    else:
+                        sent_actions.append(actions[e])
+            else:
+                sent_actions = actions
+
             # Send all actions
             for e in range(num_envs):
-                envs[e].send_action(actions[e])
+                envs[e].send_action(sent_actions[e])
 
             # Receive observations in parallel
             results = list(executor.map(lambda env: env.recv_obs(), envs))
@@ -780,7 +817,8 @@ def train(args):
             print(f"  [TUNER] ent_c={tuner_state['entropy_coef']:.4f} "
                   f"lr={tuner_state['lr']:.2e} "
                   f"rscale={tuner_state['reward_scale']:.1f} "
-                  f"bot_skill={tuner_state['bot_skill']}")
+                  f"bot_skill={tuner_state['bot_skill']} "
+                  f"assist={tuner_state['assist_weight']:.3f}")
 
             log_writer.writerow([
                 iteration, total_timesteps, total_episodes,
@@ -788,9 +826,10 @@ def train(args):
                 rollout_frags, rollout_deaths, f"{mean_l:.0f}",
                 f"{metrics['policy_loss']:.6f}", f"{metrics['value_loss']:.6f}",
                 f"{metrics['entropy']:.4f}", f"{metrics['clip_fraction']:.4f}",
-                f"{metrics['approx_kl']:.6f}", f"{elapsed:.1f}",
+                f"{metrics['approx_kl']:.6f}", f"{metrics['aim_loss']:.6f}", f"{elapsed:.1f}",
                 f"{tuner_state['entropy_coef']:.6f}", f"{tuner_state['lr']:.2e}",
                 f"{tuner_state['reward_scale']:.2f}", tuner_state['bot_skill'],
+                f"{tuner_state['assist_weight']:.4f}",
             ])
             log_file.flush()
 
@@ -846,4 +885,10 @@ if __name__ == "__main__":
     parser.add_argument("--resume", type=str, default=None, help="Resume from checkpoint")
     parser.add_argument("--bot-skill", type=int, default=1, help="Initial bot skill level (0-10)")
     parser.add_argument("--aim-coef", type=float, default=1.0, help="Auxiliary aim supervision coefficient")
+    parser.add_argument("--aim-assist", dest="aim_assist", action="store_true", default=True,
+                        help="Enable aim assist curriculum (default: on)")
+    parser.add_argument("--no-aim-assist", dest="aim_assist", action="store_false",
+                        help="Disable aim assist curriculum")
+    parser.add_argument("--aim-assist-weight", type=float, default=1.0,
+                        help="Initial aim assist blend weight (1.0=full script, 0.0=pure model)")
     train(parser.parse_args())
