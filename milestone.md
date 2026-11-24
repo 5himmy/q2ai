@@ -67,9 +67,9 @@ Hit-only RL rewards + auxiliary aim supervision. The NN learns aim direction fro
 
 ---
 
-## Training Infrastructure
+## Training Infrastructure (V3.1)
 
-- **KaaN V3.0** — 250 parallel instances on 12-core/16GB/RTX 3070
+- **KaaN V3.1** — 250 parallel instances on 12-core/16GB/RTX 3070
 - **Map:** hop (small box map, guaranteed line of sight, frequent encounters)
 - **Game mode:** Instagib (`g_gamemode 1`) — railgun only, one-shot kill, hitscan, infinite ammo (`dmflags 8192`)
 - **Architecture:** V2.6 Grouped Encoder + Entity Attention + Fourier Position + LSTM (1.2M params)
@@ -116,6 +116,12 @@ KaaN trains on hop — a tiny box map with guaranteed line of sight. Instagib mo
 - Facing reward `aim_dot * 0.02` → frags stayed flat at 3-7 (too weak for PPO)
 - Sharper `aim_dot² * 0.15` → still flat (gradient too sparse)
 - Uniform std clamping → movement and aim need different exploration ranges
+
+**V3.1 improvements (applied, single commits each):**
+- **Aim assist curriculum** (`--aim-assist`, `--aim-assist-weight`): ideal yaw/pitch blended with model output when enemy visible; `assist_weight` auto-decays as K/D improves (K/D>0.3 → ×0.95, K/D>0.5 → 0.0); buffer stores original model actions so policy gradient is unaffected
+- **Pitch-to-enemy observation** (OBS_DIM 113→115): `obs[48-49]` = `sin/cos(pitch_to_enemy)`; enemy encoder Linear(10→64) → Linear(12→64); breaks enemy_encoder weights in old checkpoints (auto-skipped on resume)
+- **Action space simplification**: `--disable-crouch` (always 0, excluded from entropy), `--single-weapon {none,rl,rg}` (fixed weapon output, excluded from entropy); rcon give commands sent for RL mode on startup
+- **BC comparison**: `--no-bc` (ignores `--resume`, starts from scratch); CSV filenames: `train_bc_*.csv` / `train_nobc_*.csv` / `train_scratch_*.csv`
 
 **Known issues:**
 - EMA low-pass filter causes slow zigzag circling around target (momentum overshoot)

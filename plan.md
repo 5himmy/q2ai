@@ -184,6 +184,25 @@ Server:27913 + KaaN[instance=3]  ─┘
   - Toggleable live via rcon, no restart needed
   - Implemented in both opentdm and zigock-q2
 
+#### Completed (V3.1):
+- [x] V3.1 Aim Assist Curriculum — `--aim-assist`/`--no-aim-assist`, `--aim-assist-weight`
+  - Blends model yaw/pitch with ideal script aim (C-side `enemy_aim_yaw/pitch`) when enemy visible
+  - `AdaptiveTuner` decays `assist_weight` one-way: K/D>0.3 → ×0.95, K/D>0.5 → 0.0
+  - Buffer stores original model actions; sent_actions uses blended values (policy gradient unaffected)
+  - CSV: added `aim_loss` and `assist_weight` columns; console: `[TUNER] assist=N.NNN`
+- [x] V3.1 Pitch-to-Enemy Observation — OBS_DIM 113 → 115
+  - `obs[48-49]` = `sin/cos(pitch_to_enemy)` = vertical angle from self to enemy
+  - Enemy encoder Linear(10→64) → Linear(12→64); obs slices shifted (+2 for indices 50+)
+  - Old checkpoints: `enemy_encoder` auto-reinitializes, all other weights transfer
+- [x] V3.1 Action Space Simplification
+  - `--disable-crouch`: always 0, excluded from entropy sum
+  - `--single-weapon {none,rl,rg}`: fixed weapon output, excluded from entropy sum
+  - For RL: startup rcon sends `sv_cheats 1; give rocket_launcher; give rockets 200`
+  - `WEAPON_IDS` map: rl=7, rg=9 (1-indexed action space)
+- [x] V3.1 BC Comparison Flag — `--no-bc`
+  - Ignores `--resume` with warning, starts from scratch
+  - CSV names: `train_bc_*.csv` / `train_nobc_*.csv` / `train_scratch_*.csv`
+
 #### In Progress:
 - [ ] V3.0 Training Curriculum — teach AI to shoot first
   - Observation upgrades: enemy weapon (skinnum), ideal aim deltas (yaw/pitch to face enemy)
