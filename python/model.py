@@ -304,7 +304,8 @@ class ActorCritic(nn.Module):
             lstm_out = lstm_out.squeeze(1)
         return lstm_out, new_hidden
 
-    def get_action_and_value(self, obs, hidden_actor=None, hidden_critic=None, action=None):
+    def get_action_and_value(self, obs, hidden_actor=None, hidden_critic=None, action=None,
+                             disable_crouch=False, fixed_weapon=None):
         """
         Get action, log_prob, entropy, value, and updated hidden states.
 
@@ -313,6 +314,8 @@ class ActorCritic(nn.Module):
             hidden_actor: (h, c) tuple or None
             hidden_critic: (h, c) tuple or None
             action: dict of actions to evaluate (for PPO update), or None to sample
+            disable_crouch: if True, crouch is always 0 and excluded from entropy
+            fixed_weapon: if int (0-10), weapon is always that value and excluded from entropy
 
         Returns:
             dict with actions, log_prob, entropy, value, hidden_actor, hidden_critic
@@ -344,9 +347,12 @@ class ActorCritic(nn.Module):
         if action is None:
             cont_action = cont_dist.sample()
             jump_action = jump_dist.sample()
-            crouch_action = crouch_dist.sample()
+            crouch_action = torch.zeros_like(jump_action) if disable_crouch else crouch_dist.sample()
             attack_action = attack_dist.sample()
-            weapon_action = weapon_dist.sample()
+            if fixed_weapon is not None:
+                weapon_action = torch.full_like(jump_action.long(), fixed_weapon)
+            else:
+                weapon_action = weapon_dist.sample()
         else:
             cont_action = action["continuous"]
             jump_action = action["jump"]
@@ -362,13 +368,13 @@ class ActorCritic(nn.Module):
             + weapon_dist.log_prob(weapon_action)
         )
 
-        entropy = (
-            cont_dist.entropy().sum(-1)
-            + jump_dist.entropy()
-            + crouch_dist.entropy()
-            + attack_dist.entropy()
-            + weapon_dist.entropy()
-        )
+        # Entropy: exclude disabled actions so their constant distributions
+        # don't inflate the entropy term and distort the entropy bonus.
+        entropy = cont_dist.entropy().sum(-1) + jump_dist.entropy() + attack_dist.entropy()
+        if not disable_crouch:
+            entropy = entropy + crouch_dist.entropy()
+        if fixed_weapon is None:
+            entropy = entropy + weapon_dist.entropy()
 
         return {
             "continuous": cont_action,
@@ -394,13 +400,15 @@ class ActorCritic(nn.Module):
         features, new_hidden = self._forward_critic(obs, hidden_critic)
         return self.critic(features).squeeze(-1), new_hidden
 
-    def act_batch(self, obs_list, hidden_states=None):
+    def act_batch(self, obs_list, hidden_states=None, disable_crouch=False, fixed_weapon=None):
         """Batched inference for all N envs in one GPU round trip.
 
         Args:
             obs_list: list of N numpy obs arrays
             hidden_states: list of N tuples (h_a, c_a, h_c, c_c) each (1,1,256),
                           or None to use zero states
+            disable_crouch: if True, crouch always 0, excluded from entropy
+            fixed_weapon: if int, weapon always that value, excluded from entropy
 
         Returns:
             actions: list of N action dicts
@@ -425,7 +433,9 @@ class ActorCritic(nn.Module):
                 ha_tuple = None
                 hc_tuple = None
 
-            result = self.get_action_and_value(obs_t, ha_tuple, hc_tuple)
+            result = self.get_action_and_value(obs_t, ha_tuple, hc_tuple,
+                                               disable_crouch=disable_crouch,
+                                               fixed_weapon=fixed_weapon)
 
             cont = result["continuous"].cpu().numpy()
             jumps = result["jump"].cpu().numpy()

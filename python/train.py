@@ -36,6 +36,13 @@ REWARD_SCALE = 5.0   # Scale up small rewards (~-0.1) so value function learns f
 BASE_PORT = 27910
 RCON_PASSWORD = "q2ai"
 
+# Weapon action IDs (1-indexed, 0=no switch): index in WEAPON_INDICES + 1
+WEAPON_IDS = {
+    "none": None,
+    "rl": 7,   # rocket launcher (WEAPON_INDICES index 6)
+    "rg": 9,   # railgun (WEAPON_INDICES index 8)
+}
+
 
 def rcon_query(port, command):
     """Send rcon command to q2pro server and return response."""
@@ -375,7 +382,8 @@ class RolloutBuffer:
 
 
 def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
-               entropy_coef, value_coef, max_grad_norm, target_kl, aim_coef=1.0, device="cpu"):
+               entropy_coef, value_coef, max_grad_norm, target_kl, aim_coef=1.0, device="cpu",
+               disable_crouch=False, fixed_weapon=None):
     """Run PPO updates on sequence chunks with LSTM unrolling."""
     metrics = {"policy_loss": 0, "value_loss": 0, "entropy": 0,
                "clip_fraction": 0, "approx_kl": 0, "aim_loss": 0, "n_updates": 0}
@@ -399,7 +407,8 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
             hidden_critic = (batch["h_critic"], batch["c_critic"])
 
             result = model.get_action_and_value(
-                batch["obs"], hidden_actor, hidden_critic, action=action
+                batch["obs"], hidden_actor, hidden_critic, action=action,
+                disable_crouch=disable_crouch, fixed_weapon=fixed_weapon,
             )
 
             # result tensors are (B, seq_len) — flatten for loss computation
@@ -482,11 +491,27 @@ def train(args):
     num_chunks_per_env = steps_per_env // seq_len
     total_chunks = num_envs * num_chunks_per_env
 
-    print(f"Q2AI Training — KaaN[V2.8-AdaptiveTuning]")
+    # Resolve fixed weapon ID
+    fixed_weapon = WEAPON_IDS.get(args.single_weapon, None)
+    disable_crouch = args.disable_crouch
+
+    print(f"Q2AI Training — KaaN[V3.1]")
     print(f"Instances: {num_envs}, LR: {args.lr}, Rollout: {steps_per_env}, "
           f"Seq: {seq_len}, Reward scale: {REWARD_SCALE}x, Target KL: {args.target_kl}")
     print(f"Chunks per env: {num_chunks_per_env}, Total chunks: {total_chunks}, "
           f"Batch chunks: {args.batch_chunks}")
+    if disable_crouch:
+        print("  Action: crouch DISABLED (always 0, excluded from entropy)")
+    if fixed_weapon is not None:
+        print(f"  Action: weapon FIXED to {args.single_weapon} (id={fixed_weapon}, excluded from entropy)")
+        # Send rcon give command to all servers so weapon is available on spawn
+        give_cmds = {
+            "rl": ["sv_cheats 1", "give rocket_launcher", "give rockets 200"],
+            "rg": [],  # instagib mode gives railgun automatically
+        }
+        for cmd in give_cmds.get(args.single_weapon, []):
+            for port in range(BASE_PORT, BASE_PORT + num_envs):
+                rcon_query(port, cmd)
 
     # Adaptive hyperparameter tuner
     tuner = AdaptiveTuner(
@@ -690,7 +715,10 @@ def train(args):
                 aim_masks_t.append(1.0 if raw[41] > 0.5 else 0.0)
 
             # Batch inference with LSTM hidden states
-            actions, log_probs, values, new_hidden_states = model.act_batch(obs_list, hidden_states)
+            actions, log_probs, values, new_hidden_states = model.act_batch(
+                obs_list, hidden_states,
+                disable_crouch=disable_crouch, fixed_weapon=fixed_weapon,
+            )
             hidden_states = new_hidden_states
 
             # Aim assist: blend model yaw/pitch with ideal script aim (enemy visible only).
@@ -792,6 +820,8 @@ def train(args):
             target_kl=args.target_kl,
             aim_coef=args.aim_coef,
             device=device,
+            disable_crouch=disable_crouch,
+            fixed_weapon=fixed_weapon,
         )
 
         # Adaptive tuning
@@ -891,4 +921,8 @@ if __name__ == "__main__":
                         help="Disable aim assist curriculum")
     parser.add_argument("--aim-assist-weight", type=float, default=1.0,
                         help="Initial aim assist blend weight (1.0=full script, 0.0=pure model)")
+    parser.add_argument("--disable-crouch", action="store_true", default=False,
+                        help="Always output crouch=0, exclude from entropy")
+    parser.add_argument("--single-weapon", choices=["none", "rl", "rg"], default="none",
+                        help="Fix weapon output: none=model decides, rl=rocket launcher, rg=railgun")
     train(parser.parse_args())
