@@ -79,11 +79,12 @@ class AdaptiveTuner:
         # Aim assist curriculum
         self.aim_assist = aim_assist
         self.assist_weight = initial_assist_weight if aim_assist else 0.0
+        self.aim_assist_decay_mode = "aimloss"  # changed via set_decay_mode()
 
         # Rolling K/D tracking (last 10 logged iterations)
         self.kd_history = deque(maxlen=10)
 
-    def update(self, iteration, metrics, rollout_frags, rollout_deaths):
+    def update(self, iteration, metrics, rollout_frags, rollout_deaths, aim_loss=None):
         """Adjust hyperparameters based on recent metrics. Call after each PPO update."""
 
         # 1. Adaptive entropy coefficient
@@ -125,16 +126,27 @@ class AdaptiveTuner:
                 self.kd_history.clear()
 
         # 5. Aim assist decay — one-way curriculum (never re-enables once reduced)
-        if self.aim_assist and self.assist_weight > 0 and len(self.kd_history) >= 5:
-            recent_kd = sum(list(self.kd_history)[-5:]) / 5
-            if recent_kd > 0.5:
-                self.assist_weight = 0.0
-                print(f"  [TUNER] Aim assist disabled (recent K/D={recent_kd:.2f} > 0.5)")
-            elif recent_kd > 0.3:
-                old_w = self.assist_weight
-                self.assist_weight = max(0.0, self.assist_weight * 0.95)
-                if abs(old_w - self.assist_weight) > 0.01:
-                    print(f"  [TUNER] Aim assist decayed {old_w:.3f} → {self.assist_weight:.3f} (recent K/D={recent_kd:.2f})")
+        if self.aim_assist and self.assist_weight > 0:
+            if self.aim_assist_decay_mode == "aimloss" and aim_loss is not None:
+                # Decay based on aim_loss: model must actually learn to aim first
+                if aim_loss < 0.05:
+                    self.assist_weight = 0.0
+                    print(f"  [TUNER] Aim assist disabled (aim_loss={aim_loss:.4f} < 0.05)")
+                elif aim_loss < 0.1:
+                    old_w = self.assist_weight
+                    self.assist_weight = max(0.0, self.assist_weight * 0.95)
+                    if abs(old_w - self.assist_weight) > 0.01:
+                        print(f"  [TUNER] Aim assist decayed {old_w:.3f} → {self.assist_weight:.3f} (aim_loss={aim_loss:.4f})")
+            elif self.aim_assist_decay_mode == "kd" and len(self.kd_history) >= 5:
+                recent_kd = sum(list(self.kd_history)[-5:]) / 5
+                if recent_kd > 0.5:
+                    self.assist_weight = 0.0
+                    print(f"  [TUNER] Aim assist disabled (recent K/D={recent_kd:.2f} > 0.5)")
+                elif recent_kd > 0.3:
+                    old_w = self.assist_weight
+                    self.assist_weight = max(0.0, self.assist_weight * 0.95)
+                    if abs(old_w - self.assist_weight) > 0.01:
+                        print(f"  [TUNER] Aim assist decayed {old_w:.3f} → {self.assist_weight:.3f} (recent K/D={recent_kd:.2f})")
 
         return {
             "entropy_coef": self.entropy_coef,
@@ -524,6 +536,7 @@ def train(args):
         aim_assist=args.aim_assist,
         initial_assist_weight=args.aim_assist_weight,
     )
+    tuner.aim_assist_decay_mode = args.aim_assist_decay_mode
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -835,7 +848,8 @@ def train(args):
         )
 
         # Adaptive tuning
-        tuner_state = tuner.update(iteration, metrics, rollout_frags, rollout_deaths)
+        tuner_state = tuner.update(iteration, metrics, rollout_frags, rollout_deaths,
+                                   aim_loss=metrics.get("aim_loss"))
 
         # Log
         if iteration % args.log_interval == 0 or iteration == 1:
@@ -931,6 +945,8 @@ if __name__ == "__main__":
                         help="Disable aim assist curriculum")
     parser.add_argument("--aim-assist-weight", type=float, default=1.0,
                         help="Initial aim assist blend weight (1.0=full script, 0.0=pure model)")
+    parser.add_argument("--aim-assist-decay-mode", choices=["kd", "aimloss"], default="aimloss",
+                        help="When to decay aim assist: aimloss=when aim_loss<0.1 (default), kd=when K/D>0.3")
     parser.add_argument("--disable-crouch", action="store_true", default=False,
                         help="Always output crouch=0, exclude from entropy")
     parser.add_argument("--single-weapon", choices=["none", "rl", "rg"], default="none",
