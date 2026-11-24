@@ -539,6 +539,10 @@ def train(args):
     # Model
     model = ActorCritic(obs_dim=OBS_DIM).to(device)
 
+    if args.no_bc and args.resume:
+        print(f"  --no-bc set: ignoring --resume {args.resume}, starting from scratch")
+        args.resume = None
+
     if args.resume:
         print(f"Resuming from {args.resume}")
         ckpt = torch.load(args.resume, weights_only=False, map_location=device)
@@ -624,11 +628,17 @@ def train(args):
     # Buffer: per-env storage with sequence chunk support
     buffer = RolloutBuffer(num_envs, steps_per_env, seq_len)
 
-    # Logging
+    # Logging — CSV name encodes BC status for easy comparison
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = f"logs/train_{timestamp}.csv"
+    if args.no_bc:
+        bc_tag = "nobc"
+    elif args.resume:
+        bc_tag = "bc"
+    else:
+        bc_tag = "scratch"
+    log_path = f"logs/train_{bc_tag}_{timestamp}.csv"
     log_file = open(log_path, "w", newline="")
     log_writer = csv.writer(log_file)
     log_writer.writerow([
@@ -925,4 +935,6 @@ if __name__ == "__main__":
                         help="Always output crouch=0, exclude from entropy")
     parser.add_argument("--single-weapon", choices=["none", "rl", "rg"], default="none",
                         help="Fix weapon output: none=model decides, rl=rocket launcher, rg=railgun")
+    parser.add_argument("--no-bc", action="store_true", default=False,
+                        help="Start from scratch, ignore --resume (logs as train_nobc_*.csv)")
     train(parser.parse_args())
