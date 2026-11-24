@@ -677,15 +677,15 @@ def train(args):
 
             # Compute aim targets from raw obs (before normalization)
             # Target: clamp(aim_delta_degrees / max_delta_per_frame, -1, 1)
-            # yaw: raw[49] = aim_yaw_deg/180, NN output*10=degrees → target = raw*18
-            # pitch: raw[50] = aim_pitch_deg/90, NN output*5=degrees → target = raw*18
+            # yaw: raw[51] = aim_yaw_deg/180, NN output*10=degrees → target = raw*18
+            # pitch: raw[52] = aim_pitch_deg/90, NN output*5=degrees → target = raw*18
             aim_targets_t = []
             aim_masks_t = []
             for e in range(num_envs):
                 raw = raw_obs_list[e]
                 aim_targets_t.append([
-                    np.clip(raw[49] * 18.0, -1.0, 1.0),
-                    np.clip(raw[50] * 18.0, -1.0, 1.0),
+                    np.clip(raw[51] * 18.0, -1.0, 1.0),
+                    np.clip(raw[52] * 18.0, -1.0, 1.0),
                 ])
                 aim_masks_t.append(1.0 if raw[41] > 0.5 else 0.0)
 
@@ -702,8 +702,8 @@ def train(args):
                     if raw_obs_list[e][41] > 0.5:  # enemy visible
                         w = tuner.assist_weight
                         sa = dict(actions[e])
-                        sa["yaw_delta"] = w * raw_obs_list[e][49] * 180.0 + (1.0 - w) * actions[e]["yaw_delta"]
-                        sa["pitch_delta"] = w * raw_obs_list[e][50] * 90.0 + (1.0 - w) * actions[e]["pitch_delta"]
+                        sa["yaw_delta"] = w * raw_obs_list[e][51] * 180.0 + (1.0 - w) * actions[e]["yaw_delta"]
+                        sa["pitch_delta"] = w * raw_obs_list[e][52] * 90.0 + (1.0 - w) * actions[e]["pitch_delta"]
                         sent_actions.append(sa)
                     else:
                         sent_actions.append(actions[e])
