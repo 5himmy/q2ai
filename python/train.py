@@ -67,7 +67,10 @@ class AdaptiveTuner:
 
     def __init__(self, initial_entropy_coef, initial_lr, initial_reward_scale,
                  num_rollouts, num_envs, target_entropy=5.0, initial_bot_skill=0,
-                 aim_assist=True, initial_assist_weight=1.0):
+                 aim_assist=True, initial_assist_weight=1.0,
+                 kd_graduate=2.0, kd_drop=0.5):
+        self.kd_graduate = kd_graduate
+        self.kd_drop = kd_drop
         self.entropy_coef = initial_entropy_coef
         self.initial_lr = initial_lr
         self.lr = initial_lr
@@ -113,13 +116,16 @@ class AdaptiveTuner:
         self.kd_history.append(kd)
         if len(self.kd_history) >= 10:
             rolling_kd = sum(self.kd_history) / len(self.kd_history)
-            if rolling_kd > 0.5 and self.bot_skill < 10:
+            # Graduate only when KaaN beats the bot comfortably; drop back when it
+            # is being overwhelmed. (Was > 0.5 / < 0.05: with a moving, shooting
+            # bot that raised skill every ~10 iterations even while KaaN lost.)
+            if rolling_kd > self.kd_graduate and self.bot_skill < 10:
                 self.bot_skill += 1
                 print(f"  [TUNER] Graduating bot skill to {self.bot_skill} (rolling K/D={rolling_kd:.2f})")
                 for port in range(BASE_PORT, BASE_PORT + self.num_envs):
                     rcon_query(port, f"g_bot_skill {self.bot_skill}")
                 self.kd_history.clear()
-            elif rolling_kd < 0.05 and self.bot_skill > 0:
+            elif rolling_kd < self.kd_drop and self.bot_skill > 1:
                 self.bot_skill -= 1
                 print(f"  [TUNER] Dropping bot skill to {self.bot_skill} (rolling K/D={rolling_kd:.2f})")
                 for port in range(BASE_PORT, BASE_PORT + self.num_envs):
@@ -545,6 +551,8 @@ def train(args):
         initial_bot_skill=args.bot_skill,
         aim_assist=args.aim_assist,
         initial_assist_weight=args.aim_assist_weight,
+        kd_graduate=args.kd_graduate,
+        kd_drop=args.kd_drop,
     )
     tuner.aim_assist_decay_mode = args.aim_assist_decay_mode
 
@@ -1027,6 +1035,10 @@ if __name__ == "__main__":
                         help="Hard-gate fire to crosshair-on-hitbox (default off: policy learns via --miss-penalty)")
     parser.add_argument("--miss-check", choices=["post", "pre"], default="post",
                         help="Judge a shot on aim error after this frame's turn (post, default) or before (pre)")
+    parser.add_argument("--kd-graduate", type=float, default=2.0,
+                        help="Raise bot skill when rolling K/D (10 log intervals) exceeds this")
+    parser.add_argument("--kd-drop", type=float, default=0.5,
+                        help="Lower bot skill when rolling K/D falls below this")
     parser.add_argument("--miss-penalty", type=float, default=0.02,
                         help="Reward penalty per frame the policy fires at a visible enemy while off-target")
     parser.add_argument("--no-bc", action="store_true", default=False,
