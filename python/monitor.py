@@ -20,8 +20,9 @@ import time
 from datetime import datetime
 
 
-DASHBOARD_PATH = "/home/oky/Documents/vscode/q2ai/evolve.html"
-DATA_PATH = "/home/oky/Documents/vscode/q2ai/evolve_data.json"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DASHBOARD_PATH = os.path.join(PROJECT_ROOT, "evolve.html")
+DATA_PATH = os.path.join(PROJECT_ROOT, "evolve_data.json")
 TRAINING_LOG = "/tmp/training.log"
 BASE_PORT = 27910
 RCON_PASSWORD = "q2ai"
@@ -30,6 +31,7 @@ STAGES = [
     {"name": "Learn aim direction", "check": "aim_loss", "threshold": "aim_loss < 0.05"},
     {"name": "Hit stationary target", "check": "frag", "threshold": "frags > 50 per iter"},
     {"name": "Consistent hits", "check": "positive", "threshold": "frags > 200 per iter"},
+    {"name": "Aim before firing", "check": "miss_rate", "threshold": "miss_rate < 0.2"},
     {"name": "Smooth aim (no zigzag)", "check": "smooth_aim", "threshold": "visual inspection"},
     {"name": "Hit moving target", "check": "moving_target", "threshold": "frags > 50 with bot moving"},
     {"name": "Survive under fire", "check": "survive", "threshold": "deaths < frags with bot shooting"},
@@ -45,6 +47,7 @@ ARCH_MILESTONES = [
     {"name": "V2.0 LSTM Memory", "status": "done", "threshold": "encoder(91\u2192256) + LSTM(256\u2192256)"},
     {"name": "V2.5 Grouped Encoder", "status": "done", "threshold": "Fourier pos + entity attention + 2-layer fusion"},
     {"name": "V3.0 Aim Supervision", "status": "done", "threshold": "MSE aim loss + hit-only rewards + per-dim std clamp"},
+    {"name": "V3.1 Fire Control", "status": "done", "threshold": "pitch obs + corpse filter + visibility gate + miss penalty"},
     {"name": "V4.0 Self-Play", "status": "pending", "threshold": "train against copies of itself"},
 ]
 
@@ -97,15 +100,25 @@ def parse_training_log():
     entries = []
     with open(TRAINING_LOG) as f:
         for line in f:
-            # V1.3 format: [  N] steps=N | step_r=X frags=N deaths=N | pi=X v=X ent=X kl=X | Ns
+            # V3.1 fire stats: [FIRE] visible_shots=N off_target=N miss_rate=X
+            # (printed right after its iteration line)
+            m = re.search(r'\[FIRE\].*miss_rate=([\d.]+)', line)
+            if m:
+                if entries:
+                    entries[-1]["miss_rate"] = float(m.group(1))
+                continue
+            # V1.3+ format: [  N] steps=N | step_r=X frags=N deaths=N | pi=X v=X [aim=X] ent=X kl=X | Ns
             m = re.match(
                 r'\[\s*(\d+)\]\s+steps=\s*(\d+)\s+\|\s+'
                 r'step_r=\s*([-\d.]+)\s+frags=\s*(\d+)\s+deaths=\s*(\d+)\s+\|\s+'
-                r'pi=\s*([-\d.]+)\s+v=\s*([-\d.]+)\s+ent=\s*([-\d.]+)\s+'
+                r'pi=\s*([-\d.]+)\s+v=\s*([-\d.]+)\s+(?:aim=\s*([-\d.]+)\s+)?ent=\s*([-\d.]+)\s+'
                 r'kl=\s*([-\d.]+)\s+\|\s+(\d+)s',
                 line.strip()
             )
             if m:
+                # The trainer re-prints an iteration line on tuner events; keep the last one
+                if entries and entries[-1]["iteration"] == int(m.group(1)):
+                    entries.pop()
                 entries.append({
                     "iteration": int(m.group(1)),
                     "steps": int(m.group(2)),
@@ -116,9 +129,10 @@ def parse_training_log():
                     "deaths": int(m.group(5)),
                     "policy_loss": float(m.group(6)),
                     "value_loss": float(m.group(7)),
-                    "entropy": float(m.group(8)),
-                    "kl": float(m.group(9)),
-                    "elapsed": int(m.group(10)),
+                    "aim_loss": float(m.group(8)) if m.group(8) else None,
+                    "entropy": float(m.group(9)),
+                    "kl": float(m.group(10)),
+                    "elapsed": int(m.group(11)),
                 })
                 continue
             # V1.1 format: [  N] steps=N eps=N | R=X step_r=X frags=X deaths=N | ...
@@ -186,6 +200,18 @@ def evaluate_milestones(entries, server_info):
             statuses[s["name"]] = "done" if avg_sr > 0.005 else ("progress" if avg_sr > -0.005 else "pending")
         elif check == "weapon_switch":
             statuses[s["name"]] = "done" if avg_sr > 0.005 else ("progress" if avg_sr > -0.01 else "pending")
+        elif check == "aim_loss":
+            al = latest.get("aim_loss")
+            if al is None:
+                statuses[s["name"]] = "pending"
+            else:
+                statuses[s["name"]] = "done" if al < 0.05 else ("progress" if al < 0.15 else "pending")
+        elif check == "miss_rate":
+            mr = latest.get("miss_rate")
+            if mr is None:
+                statuses[s["name"]] = "pending"
+            else:
+                statuses[s["name"]] = "done" if mr < 0.2 else ("progress" if mr < 0.6 else "pending")
         elif check == "frag":
             statuses[s["name"]] = "done" if total_frags > 0 else "pending"
         elif check == "positive":
@@ -239,6 +265,9 @@ def generate_html(history, milestones, latest, server_info):
             icon = "&#9744;"
         arch_milestone_html += f'<div class="card {cls}"><span class="icon">{icon}</span><div class="title">{s["name"]}</div><div class="threshold">{s["threshold"]}</div></div>\n'
 
+    def fmt(v, nd=4):
+        return "-" if v is None else f"{v:.{nd}f}"
+
     # History rows
     history_rows = ""
     for h in reversed(history[-30:]):
@@ -252,7 +281,9 @@ def generate_html(history, milestones, latest, server_info):
             f'<td>{h["frags"]:.1f}</td>'
             f'<td>{h["deaths"]}</td>'
             f'<td>{h["entropy"]:.1f}</td>'
-            f'<td>{h["kl"]:.1f}</td>'
+            f'<td>{h["kl"]:.4f}</td>'
+            f'<td>{fmt(h.get("aim_loss"))}</td>'
+            f'<td>{fmt(h.get("miss_rate"), 3)}</td>'
             f'<td>{h.get("observation", "")}</td>'
             f'</tr>\n'
         )
@@ -279,6 +310,8 @@ def generate_html(history, milestones, latest, server_info):
     steps_val = f"{latest['steps']:,d}" if latest else "0"
     iter_val = str(latest["iteration"]) if latest else "0"
     ent_val = f"{latest['entropy']:.1f}" if latest else "0"
+    aim_val = fmt(latest.get("aim_loss")) if latest else "-"
+    miss_val = fmt(latest.get("miss_rate"), 3) if latest else "-"
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -335,6 +368,8 @@ canvas {{ background: #151520; border-radius: 8px; padding: 10px; }}
 <div class="stat"><div class="value">{steps_val}</div><div class="label">Total Steps</div></div>
 <div class="stat"><div class="value">{iter_val}</div><div class="label">Iteration</div></div>
 <div class="stat"><div class="value">{ent_val}</div><div class="label">Entropy</div></div>
+<div class="stat"><div class="value">{aim_val}</div><div class="label">Aim Loss</div></div>
+<div class="stat"><div class="value">{miss_val}</div><div class="label">Miss Rate</div></div>
 </div>
 </div>
 
@@ -360,7 +395,7 @@ canvas {{ background: #151520; border-radius: 8px; padding: 10px; }}
 <div class="section">
 <h2>Evolution Log</h2>
 <table>
-<tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Observation</th></tr>
+<tr><th>Time</th><th>Iter</th><th>Steps</th><th>Step R</th><th>Frags</th><th>Deaths</th><th>Entropy</th><th>KL</th><th>Aim Loss</th><th>Miss Rate</th><th>Observation</th></tr>
 {history_rows}
 </table>
 </div>
@@ -488,6 +523,8 @@ def main():
                     "deaths": latest["deaths"],
                     "entropy": latest["entropy"],
                     "kl": latest["kl"],
+                    "aim_loss": latest.get("aim_loss"),
+                    "miss_rate": latest.get("miss_rate"),
                     "observation": get_observation(latest),
                 }
                 history.append(entry)

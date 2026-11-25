@@ -3,7 +3,7 @@
 visualize_network.py -- Generate a standalone HTML visualization of KaaN's neural network.
 
 Loads the ActorCritic model from the latest checkpoint (or model_bc.pt fallback)
-and produces /home/oky/Documents/vscode/q2ai/network.html with:
+and produces <project>/network.html with:
   - Architecture diagram (SVG)
   - Weight statistics table
   - Action space visualization
@@ -16,7 +16,8 @@ import math
 import html as html_mod
 from datetime import datetime
 
-sys.path.insert(0, '/home/oky/Documents/vscode/q2ai/python')
+_PY_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _PY_DIR)
 from model import ActorCritic
 from q2ai_env import OBS_DIM
 
@@ -27,9 +28,9 @@ import numpy as np
 # 1. Find and load the best checkpoint
 # ---------------------------------------------------------------------------
 
-CKPT_DIR = '/home/oky/Documents/vscode/q2ai/python/checkpoints'
-BC_MODEL = '/home/oky/Documents/vscode/q2ai/python/model_bc.pt'
-OUTPUT   = '/home/oky/Documents/vscode/q2ai/network.html'
+CKPT_DIR = os.path.join(_PY_DIR, 'checkpoints')
+BC_MODEL = os.path.join(_PY_DIR, 'model_bc.pt')
+OUTPUT   = os.path.join(os.path.dirname(_PY_DIR), 'network.html')
 
 def find_latest_checkpoint():
     """Return the path to the latest checkpoint, or model_bc.pt as fallback."""
