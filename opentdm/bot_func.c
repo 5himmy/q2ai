@@ -329,6 +329,56 @@ static int Bot_LoadConfig(const char *section_name)
     return count;
 }
 
+// Copy a 3ZB2 skill preset into Bot[i].param
+static void Bot_ApplyPreset(int i, const int *preset)
+{
+    Bot[i].param[BOP_WALK]        = preset[0];
+    Bot[i].param[BOP_AIM]         = preset[1];
+    Bot[i].param[BOP_PICKUP]      = preset[2];
+    Bot[i].param[BOP_OFFENCE]     = preset[3];
+    Bot[i].param[BOP_COMBATSKILL] = preset[4];
+    Bot[i].param[BOP_ROCJ]        = preset[5];
+    Bot[i].param[BOP_REACTION]    = preset[6];
+    Bot[i].param[BOP_VRANGE]      = preset[7];
+    Bot[i].param[BOP_HRANGE]      = preset[8];
+    // Weapon prefs: use preset if non-zero, otherwise default to RL/RG
+    Bot[i].param[BOP_PRIWEP]      = preset[9]  ? preset[9]  : WEAP_ROCKETLAUNCHER;
+    Bot[i].param[BOP_SECWEP]      = preset[10] ? preset[10] : WEAP_RAILGUN;
+    Bot[i].param[BOP_DODGE]       = preset[11];
+    Bot[i].param[BOP_ESTIMATE]    = preset[12];
+    Bot[i].param[BOP_NOISECHK]    = preset[13];
+    Bot[i].param[BOP_NOSTHRWATER] = preset[14];
+    Bot[i].param[BOP_TEAMWORK]    = preset[15];
+}
+
+static int bot_applied_skill;
+
+static int Bot_ClampSkill(void)
+{
+    int skill = (int)g_bot_skill->value;
+    if (skill < 1) skill = 1;
+    if (skill > 10) skill = 10;
+    return skill;
+}
+
+// Re-apply the skill preset when g_bot_skill changes mid-match (e.g. set via
+// rcon by an adaptive trainer). Bot params are read live from Bot[], so this
+// takes effect immediately. Skipped when bots come from a g_bot_config file.
+static void Bot_CheckSkillChange(void)
+{
+    int i, skill;
+
+    if (g_bot_config->string[0] && ListedBots > 0)
+        return;
+    skill = Bot_ClampSkill();
+    if (skill == bot_applied_skill)
+        return;
+    for (i = 0; i < MAXBOTS; i++)
+        Bot_ApplyPreset(i, skill_presets[skill - 1]);
+    gi.dprintf("Bot skill level changed: %d -> %d\n", bot_applied_skill, skill);
+    bot_applied_skill = skill;
+}
+
 //----------------------------------------------------------------
 // Load Bot Info - initialize from skill presets, overlay config
 //----------------------------------------------------------------
@@ -344,9 +394,8 @@ void Bot_InitDefaults(void)
     memset(ClientMessage, 0, sizeof(ClientMessage));
 
     // Clamp skill 1-10
-    skill = (int)g_bot_skill->value;
-    if (skill < 1) skill = 1;
-    if (skill > 10) skill = 10;
+    skill = Bot_ClampSkill();
+    bot_applied_skill = skill;
     preset = skill_presets[skill - 1];
 
     gi.dprintf("Bot skill level: %d\n", skill);
@@ -360,24 +409,7 @@ void Bot_InitDefaults(void)
         // skin
         strcpy(Bot[i].skin, "grunt");
 
-        // params from 3ZB2 skill preset
-        Bot[i].param[BOP_WALK]        = preset[0];
-        Bot[i].param[BOP_AIM]         = preset[1];
-        Bot[i].param[BOP_PICKUP]      = preset[2];
-        Bot[i].param[BOP_OFFENCE]     = preset[3];
-        Bot[i].param[BOP_COMBATSKILL] = preset[4];
-        Bot[i].param[BOP_ROCJ]        = preset[5];
-        Bot[i].param[BOP_REACTION]    = preset[6];
-        Bot[i].param[BOP_VRANGE]      = preset[7];
-        Bot[i].param[BOP_HRANGE]      = preset[8];
-        // Weapon prefs: use preset if non-zero, otherwise default to RL/RG
-        Bot[i].param[BOP_PRIWEP]      = preset[9]  ? preset[9]  : WEAP_ROCKETLAUNCHER;
-        Bot[i].param[BOP_SECWEP]      = preset[10] ? preset[10] : WEAP_RAILGUN;
-        Bot[i].param[BOP_DODGE]       = preset[11];
-        Bot[i].param[BOP_ESTIMATE]    = preset[12];
-        Bot[i].param[BOP_NOISECHK]    = preset[13];
-        Bot[i].param[BOP_NOSTHRWATER] = preset[14];
-        Bot[i].param[BOP_TEAMWORK]    = preset[15];
+        Bot_ApplyPreset(i, preset);
 
         // spawn flag
         Bot[i].spflg = 0;
@@ -473,6 +505,8 @@ edict_t *Get_NewClient(void)
 void Bot_Think(edict_t *self)
 {
     if (!self->client) return;
+
+    Bot_CheckSkillChange();
 
     if (self->linkcount != self->monsterinfo.linkcount) {
         M_CheckGround(self);
