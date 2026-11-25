@@ -505,7 +505,7 @@ char* TDM_BuildWeaponsStatsString(edict_t *ent, matchinfo_t *m_info,
         teamplayer_t *p_info) {
     static char stats[1400];
     unsigned i;
-    char frags[6], deaths[6], dealt[6], recvd[6], missed[6], acc[6];
+    char frags[16], deaths[16], dealt[16], recvd[16], missed[16], acc[16];
     qboolean basic;
 
     stats[0] = 0;
@@ -579,7 +579,7 @@ char* TDM_BuildTeamWeaponsStatsString(edict_t *ent, matchinfo_t *m_info,
     unsigned i, j;
     int frags_i, deaths_i, dealt_i, recvd_i, picked_i, total_hit_i,
             total_shots_i;
-    char frags[6], deaths[6], dealt[6], recvd[6], missed[6], acc[6];
+    char frags[16], deaths[16], dealt[16], recvd[16], missed[16], acc[16];
     teamplayer_t *p_info;
     qboolean basic;
     qboolean skip;
@@ -673,7 +673,7 @@ char* TDM_BuildItemsStatsString(edict_t *ent, matchinfo_t *m_info,
         teamplayer_t *p_info) {
     static char stats[1400];
     unsigned i;
-    char frags[6], deaths[6], dealt[6], recvd[6], missed[6];
+    char frags[16], deaths[16], dealt[16], recvd[16], missed[16];
     qboolean basic;
 
     stats[0] = 0;
@@ -743,7 +743,7 @@ char* TDM_BuildTeamItemsStatsString(edict_t *ent, matchinfo_t *m_info,
     static char stats[1400];
     unsigned i, j;
     int frags_i, deaths_i, dealt_i, recvd_i, picked_i;
-    char frags[6], deaths[6], dealt[6], recvd[6], missed[6];
+    char frags[16], deaths[16], dealt[16], recvd[16], missed[16];
     teamplayer_t *p_info;
     qboolean skip;
     qboolean basic;
