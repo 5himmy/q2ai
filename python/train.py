@@ -491,6 +491,15 @@ def ppo_update(model, optimizer, buffer, clip_eps, epochs, batch_chunks,
     return metrics
 
 
+def aim_on_target(raw):
+    """Crosshair within the enemy hitbox, from raw obs aim error (obs[51]/[52])."""
+    dist = max(raw[45] * 4096.0, 1.0)
+    yaw_tol = max(math.degrees(math.atan(16.0 / dist)), 1.5)
+    pitch_tol = max(math.degrees(math.atan(28.0 / dist)), 1.5)
+    return (abs(raw[51] * 180.0) <= yaw_tol and
+            abs(raw[52] * 90.0) <= pitch_tol)
+
+
 def train(args):
     """Main training loop with LSTM memory and multi-instance support."""
     num_envs = args.num_envs
@@ -675,6 +684,7 @@ def train(args):
     prev_health = [100] * num_envs
     rollout_frags = 0
     rollout_deaths = 0
+    awaiting_first_shot = [True] * num_envs
 
     start_time = time.time()
     executor = ThreadPoolExecutor(max_workers=num_envs)
@@ -701,6 +711,8 @@ def train(args):
         rollout_deaths = 0
         rollout_misses = 0
         rollout_vis_shots = 0
+        rollout_first_shots = 0
+        rollout_first_misses = 0
 
         # Drain stale semaphore posts
         for env in envs:
@@ -776,24 +788,34 @@ def train(args):
             # ×180/×90) within atan(half-size / dist), half-size 16u horiz / 28u vert,
             # min 1.5°. Used for the learned miss penalty (default) and, only with
             # --fire-aim-gate, as a hard gate on the sent attack.
+            #
+            # --miss-check post (default): the shot fires with the angles *after* this
+            # frame's turn, so judge it on the next observation's aim error. If the
+            # enemy is gone next frame (killed by the shot), it is not a miss.
+            # --miss-check pre: judge on this frame's (pre-turn) aim error.
             sent_actions = list(sent_actions)
             miss_flags = [False] * num_envs
+            fired_visible = [False] * num_envs
+            first_shot = [False] * num_envs
             for e in range(num_envs):
                 raw = raw_obs_list[e]
                 visible = raw[41] >= 1.0  # enemy visible this frame
-                on_target = False
-                if visible:
-                    dist = max(raw[45] * 4096.0, 1.0)
-                    yaw_tol = max(math.degrees(math.atan(16.0 / dist)), 1.5)
-                    pitch_tol = max(math.degrees(math.atan(28.0 / dist)), 1.5)
-                    on_target = (abs(raw[51] * 180.0) <= yaw_tol and
-                                 abs(raw[52] * 90.0) <= pitch_tol)
-                # Penalize the policy's own choice: fired at a visible enemy off-target
-                if visible and not on_target and actions[e]["attack"]:
-                    miss_flags[e] = True
-                    rollout_misses += 1
+                on_target = visible and aim_on_target(raw)
+                # First shot after the enemy (re)appears — often fired mid-turn when
+                # the enemy spawns outside KaaN's field of view.
+                if not visible:
+                    awaiting_first_shot[e] = True
                 if actions[e]["attack"] and visible:
+                    fired_visible[e] = True
                     rollout_vis_shots += 1
+                    if awaiting_first_shot[e]:
+                        first_shot[e] = True
+                        awaiting_first_shot[e] = False
+                        rollout_first_shots += 1
+                    # Penalize the policy's own choice: fired at a visible enemy off-target
+                    if args.miss_check == "pre" and not on_target:
+                        miss_flags[e] = True
+                        rollout_misses += 1
                 if not visible or (args.fire_aim_gate and not on_target):
                     sa = dict(sent_actions[e])
                     sa["attack"] = 0
@@ -813,6 +835,12 @@ def train(args):
             for e in range(num_envs):
                 next_obs_raw, reward, terminated, truncated, info = results[e]
                 rollout_rewards.append(reward)
+                if (args.miss_check == "post" and fired_visible[e]
+                        and next_obs_raw[41] >= 1.0 and not aim_on_target(next_obs_raw)):
+                    miss_flags[e] = True
+                    rollout_misses += 1
+                if first_shot[e] and miss_flags[e]:
+                    rollout_first_misses += 1
                 if miss_flags[e]:
                     reward -= args.miss_penalty
                 scaled_reward = reward * tuner.reward_scale
@@ -909,7 +937,9 @@ def train(args):
                   f"aim={metrics['aim_loss']:>6.4f} ent={metrics['entropy']:>6.3f} kl={metrics['approx_kl']:>7.4f} | "
                   f"{elapsed:>6.0f}s")
             print(f"  [FIRE] visible_shots={rollout_vis_shots} off_target={rollout_misses} "
-                  f"miss_rate={rollout_misses / max(rollout_vis_shots, 1):.3f}")
+                  f"miss_rate={rollout_misses / max(rollout_vis_shots, 1):.3f} "
+                  f"first_shots={rollout_first_shots} first_miss_rate="
+                  f"{rollout_first_misses / max(rollout_first_shots, 1):.3f}")
             print(f"  [TUNER] ent_c={tuner_state['entropy_coef']:.4f} "
                   f"lr={tuner_state['lr']:.2e} "
                   f"rscale={tuner_state['reward_scale']:.1f} "
@@ -995,6 +1025,8 @@ if __name__ == "__main__":
                         help="Fix weapon output: none=model decides, rl=rocket launcher, rg=railgun")
     parser.add_argument("--fire-aim-gate", action="store_true", default=False,
                         help="Hard-gate fire to crosshair-on-hitbox (default off: policy learns via --miss-penalty)")
+    parser.add_argument("--miss-check", choices=["post", "pre"], default="post",
+                        help="Judge a shot on aim error after this frame's turn (post, default) or before (pre)")
     parser.add_argument("--miss-penalty", type=float, default=0.02,
                         help="Reward penalty per frame the policy fires at a visible enemy while off-target")
     parser.add_argument("--no-bc", action="store_true", default=False,
