@@ -30,11 +30,20 @@ void AI_OnEnemySound(const vec3_t origin)
     s_enemy_ever_seen = true;
 }
 
-static uint8_t AI_ClassifyEntity(int ent_number, int effects)
+static uint8_t AI_ClassifyEntity(int ent_number, const entity_state_t *s)
 {
-    // Players: entity numbers 1..maxclients
-    if (ent_number >= 1 && ent_number <= cl.maxclients)
+    int effects = s->effects;
+
+    // Players: entity numbers 1..maxclients, but only live ones.
+    // Dead/gibbed players are ignored so KaaN doesn't keep shooting the corpse:
+    //   - player_die()/bot death set modelindex2 = 0 (weapon model removed)
+    //   - ThrowClientHead() swaps model to a gib head and sets EF_GIB
+    //   - live players always have modelindex 255 (skin model) + modelindex2 255
+    if (ent_number >= 1 && ent_number <= cl.maxclients) {
+        if ((effects & EF_GIB) || s->modelindex != 255 || s->modelindex2 == 0)
+            return ENT_TYPE_UNKNOWN;
         return ENT_TYPE_PLAYER;
+    }
 
     // Items: spinning pickups on the ground
     if (effects & EF_ROTATE)
@@ -98,7 +107,7 @@ void AI_Observe_Update(ai_observation_t *obs)
         eo->frame = es->s.frame;
         eo->skinnum = es->s.skinnum;
         eo->active = 1;
-        eo->entity_type = AI_ClassifyEntity(es->number, es->s.effects);
+        eo->entity_type = AI_ClassifyEntity(es->number, &es->s);
 
         // Track enemy player (first non-self player entity)
         if (eo->entity_type == ENT_TYPE_PLAYER && !obs->enemy_visible) {

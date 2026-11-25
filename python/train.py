@@ -18,6 +18,7 @@ chunk boundaries for truncated BPTT during PPO updates.
 
 import argparse
 import csv
+import math
 import os
 import socket
 import time
@@ -698,6 +699,8 @@ def train(args):
         rollout_rewards = []
         rollout_frags = 0
         rollout_deaths = 0
+        rollout_misses = 0
+        rollout_vis_shots = 0
 
         # Drain stale semaphore posts
         for env in envs:
@@ -761,6 +764,41 @@ def train(args):
             else:
                 sent_actions = actions
 
+            # Gate attack on enemy visibility: suppress fire when enemy not visible.
+            # obs[41]=1.0 only when currently visible; decays 1.0→0 over 10s after
+            # last seen. A 0.9 threshold allowed ~1s of firing at the death spot
+            # (corpse/gibs), so require exactly 1.0 = visible this frame.
+            # Only modifies sent_actions (what the game sees). The buffer must keep the
+            # sampled action: log_probs were computed for it, and storing a gated
+            # action made the PPO ratio off-policy (KL 0.1-0.4 vs target 0.05).
+            # Copy the dict: sent_actions[e] may alias actions[e].
+            # Aim check: crosshair within enemy hitbox? aim error (obs[51]/[52], deg =
+            # ×180/×90) within atan(half-size / dist), half-size 16u horiz / 28u vert,
+            # min 1.5°. Used for the learned miss penalty (default) and, only with
+            # --fire-aim-gate, as a hard gate on the sent attack.
+            sent_actions = list(sent_actions)
+            miss_flags = [False] * num_envs
+            for e in range(num_envs):
+                raw = raw_obs_list[e]
+                visible = raw[41] >= 1.0  # enemy visible this frame
+                on_target = False
+                if visible:
+                    dist = max(raw[45] * 4096.0, 1.0)
+                    yaw_tol = max(math.degrees(math.atan(16.0 / dist)), 1.5)
+                    pitch_tol = max(math.degrees(math.atan(28.0 / dist)), 1.5)
+                    on_target = (abs(raw[51] * 180.0) <= yaw_tol and
+                                 abs(raw[52] * 90.0) <= pitch_tol)
+                # Penalize the policy's own choice: fired at a visible enemy off-target
+                if visible and not on_target and actions[e]["attack"]:
+                    miss_flags[e] = True
+                    rollout_misses += 1
+                if actions[e]["attack"] and visible:
+                    rollout_vis_shots += 1
+                if not visible or (args.fire_aim_gate and not on_target):
+                    sa = dict(sent_actions[e])
+                    sa["attack"] = 0
+                    sent_actions[e] = sa
+
             # Send all actions
             for e in range(num_envs):
                 envs[e].send_action(sent_actions[e])
@@ -775,6 +813,8 @@ def train(args):
             for e in range(num_envs):
                 next_obs_raw, reward, terminated, truncated, info = results[e]
                 rollout_rewards.append(reward)
+                if miss_flags[e]:
+                    reward -= args.miss_penalty
                 scaled_reward = reward * tuner.reward_scale
 
                 buffer.add(e, obs_list[e], actions[e], log_probs[e], scaled_reward, values[e], terminated,
@@ -868,6 +908,8 @@ def train(args):
                   f"pi={metrics['policy_loss']:>7.4f} v={metrics['value_loss']:>7.4f} "
                   f"aim={metrics['aim_loss']:>6.4f} ent={metrics['entropy']:>6.3f} kl={metrics['approx_kl']:>7.4f} | "
                   f"{elapsed:>6.0f}s")
+            print(f"  [FIRE] visible_shots={rollout_vis_shots} off_target={rollout_misses} "
+                  f"miss_rate={rollout_misses / max(rollout_vis_shots, 1):.3f}")
             print(f"  [TUNER] ent_c={tuner_state['entropy_coef']:.4f} "
                   f"lr={tuner_state['lr']:.2e} "
                   f"rscale={tuner_state['reward_scale']:.1f} "
@@ -951,6 +993,10 @@ if __name__ == "__main__":
                         help="Always output crouch=0, exclude from entropy")
     parser.add_argument("--single-weapon", choices=["none", "rl", "rg"], default="none",
                         help="Fix weapon output: none=model decides, rl=rocket launcher, rg=railgun")
+    parser.add_argument("--fire-aim-gate", action="store_true", default=False,
+                        help="Hard-gate fire to crosshair-on-hitbox (default off: policy learns via --miss-penalty)")
+    parser.add_argument("--miss-penalty", type=float, default=0.02,
+                        help="Reward penalty per frame the policy fires at a visible enemy while off-target")
     parser.add_argument("--no-bc", action="store_true", default=False,
                         help="Start from scratch, ignore --resume (logs as train_nobc_*.csv)")
     train(parser.parse_args())
